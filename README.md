@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./beto-logo01.png" alt="Beto — Logo" width="180" />
+<img src="./project-logo.png" alt="Beto — Logo" width="180" />
 
 # Beto
 
