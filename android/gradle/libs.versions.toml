@@ -5,7 +5,7 @@ googleServices = "4.4.2"
 coroutines = "1.8.1"
 serialization = "1.7.3"
 timber = "5.0.1"
-firebaseBom = "33.5.1"
+firebaseBom = "34.7.0"
 desugar = "2.1.2"
 lifecycle = "2.8.7"
 
