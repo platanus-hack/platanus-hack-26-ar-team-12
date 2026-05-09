@@ -78,11 +78,10 @@ object OverlayManager {
         val sizePx = (BUBBLE_DIAMETER_DP * metrics.density).toInt()
         val paddingPx = (EDGE_PADDING_DP * metrics.density).toInt()
         return WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            sizePx,
+            sizePx,
             pickOverlayType(context),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
         ).apply {
