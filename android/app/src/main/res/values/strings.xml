@@ -12,6 +12,7 @@
     <string name="fgs_notification_channel_description">Notificación que mantiene a Beto siempre disponible.</string>
     <string name="fgs_notification_title">Beto está acá</string>
     <string name="fgs_notification_text">Tocame en la burbuja para hablar</string>
+    <string name="fgs_notification_stop">Cerrar</string>
 
     <!-- TTS frases (D-10) -->
     <string name="tts_boot_greeting">Hola, soy Beto. Estoy acá para ayudarte.</string>

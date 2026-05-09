@@ -72,6 +72,14 @@ class BetoForegroundService : LifecycleService() {
                     is AgentEvent.VoiceCaptureFailed -> {
                         planCController.onVoiceCaptureFailed(event.reason, event.elapsedMs)
                     }
+                    is AgentEvent.BubbleLongPressed -> {
+                        Timber.tag(LogTags.TTS).i("Bubble long-pressed -> stopping Beto")
+                        stopSelf()
+                    }
+                    is AgentEvent.BubbleCloseRequested -> {
+                        Timber.tag(LogTags.TTS).i("Bubble close requested -> stopping Beto")
+                        stopSelf()
+                    }
                     else -> Unit
                 }
             }
@@ -83,6 +91,12 @@ class BetoForegroundService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Timber.tag(LogTags.TTS).i("onStartCommand startId=%d", startId)
+
+        if (intent?.action == ACTION_STOP) {
+            Timber.tag(LogTags.TTS).i("Stop action received -> stopping Beto")
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         OverlayManager.show(this)
 
@@ -116,12 +130,21 @@ class BetoForegroundService : LifecycleService() {
         }
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         val pendingIntent = PendingIntent.getActivity(this, 0, tapIntent, flags)
+        val stopIntent = Intent(this, BetoForegroundService::class.java).apply {
+            action = ACTION_STOP
+        }
+        val stopPendingIntent = PendingIntent.getService(this, 1, stopIntent, flags)
 
         return NotificationCompat.Builder(this, BetoApplication.FGS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_beto_notification)
             .setContentTitle(getString(R.string.fgs_notification_title))
             .setContentText(getString(R.string.fgs_notification_text))
             .setContentIntent(pendingIntent)
+            .addAction(
+                R.drawable.ic_beto_notification,
+                getString(R.string.fgs_notification_stop),
+                stopPendingIntent,
+            )
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -138,6 +161,7 @@ class BetoForegroundService : LifecycleService() {
 
     companion object {
         const val NOTIFICATION_ID = 1001
+        private const val ACTION_STOP = "com.beto.app.service.STOP"
 
         fun startIntent(context: Context): Intent =
             Intent(context, BetoForegroundService::class.java)

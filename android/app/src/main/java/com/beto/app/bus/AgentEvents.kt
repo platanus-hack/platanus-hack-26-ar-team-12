@@ -21,6 +21,9 @@ sealed class AgentEvent {
     /** Long-press en la burbuja flotante. Phase 3 lo conecta al Modo Compañero. */
     object BubbleLongPressed : AgentEvent()
 
+    /** La burbuja fue soltada en la zona inferior central para cerrar Beto. */
+    object BubbleCloseRequested : AgentEvent()
+
     /** TTS pronunció una frase exitosamente. */
     data class TtsSpoke(val text: String) : AgentEvent()
 
