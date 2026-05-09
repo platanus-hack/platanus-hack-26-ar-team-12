@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Beto</string>
+
+    <!-- AccessibilityService -->
+    <string name="accessibility_service_label">Beto</string>
+    <string name="accessibility_service_description">Beto necesita acceso a la accesibilidad para entender lo que pasa en la pantalla y ayudarte a usar el celular.</string>
+    <string name="accessibility_service_summary">Beto te ayuda a usar el teléfono</string>
+
+    <!-- Notificación FGS (D-15) -->
+    <string name="fgs_notification_channel_name">Beto activo</string>
+    <string name="fgs_notification_channel_description">Notificación que mantiene a Beto siempre disponible.</string>
+    <string name="fgs_notification_title">Beto está acá</string>
+    <string name="fgs_notification_text">Tocame en la burbuja para hablar</string>
+
+    <!-- TTS frases (D-10) -->
+    <string name="tts_boot_greeting">Hola, soy Beto. Estoy acá para ayudarte.</string>
+    <string name="tts_overlay_missing">Para ayudarte necesito permiso para mostrarme arriba de las apps. Te llevo a configurarlo.</string>
+    <string name="tts_accessibility_missing">Necesito acceso a la accesibilidad para entender la pantalla. Te llevo a configurarlo.</string>
+    <string name="tts_tts_missing">No pude prender mi voz. Probá reiniciar el teléfono.</string>
+</resources>
