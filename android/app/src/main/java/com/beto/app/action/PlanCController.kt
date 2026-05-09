@@ -116,7 +116,7 @@ class PlanCController(
     private fun mergeWithPending(text: String): String {
         val normalized = DeterministicMatcher.normalize(text)
         val contact = DemoContacts.resolve(normalized) ?: pendingContact
-        val message = pendingMessage ?: normalized
+        val message = pendingMessage ?: stripVerbPrefix(normalized)
         return if (contact != null && pendingMessage != null) {
             "mandale a ${contact.aliases.first()} que $message"
         } else if (pendingContact != null) {
@@ -124,6 +124,15 @@ class PlanCController(
         } else {
             text
         }
+    }
+
+    private fun stripVerbPrefix(normalized: String): String {
+        val verbs = listOf("mandale", "manda", "avisale", "avisa", "decile", "dile", "escribile")
+        var msg = normalized
+        val verb = verbs.firstOrNull { msg.startsWith("$it ") }
+        if (verb != null) msg = msg.removePrefix("$verb ").removePrefix("a ").trim()
+        if (msg.startsWith("que ")) msg = msg.removePrefix("que ").trim()
+        return msg
     }
 
     private fun reset() {
