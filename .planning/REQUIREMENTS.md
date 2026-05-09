@@ -162,17 +162,79 @@ Explícitamente excluido en v1. Documentado para prevenir scope creep.
 
 ## Traceability
 
-Empty initially — actualizado durante creación del roadmap.
+Mapping completo de los 56 v1 requirements a las 5 fases del roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (a completar por gsd-roadmapper) | | |
+| SETUP-01 | Phase 1 | Pending |
+| SETUP-02 | Phase 1 | Pending |
+| SETUP-03 | Phase 1 | Pending |
+| SETUP-04 | Phase 1 | Pending |
+| SETUP-05 | Phase 1 | Pending |
+| BUS-01 | Phase 1 | Pending |
+| BUS-02 | Phase 1 | Pending |
+| BUS-03 | Phase 1 | Pending |
+| OVERLAY-01 | Phase 1 | Pending |
+| OVERLAY-02 | Phase 1 | Pending |
+| OVERLAY-03 | Phase 2 | Pending |
+| OVERLAY-04 | Phase 3 | Pending |
+| OVERLAY-05 | Phase 4 | Pending |
+| VOICE-01 | Phase 1 | Pending |
+| VOICE-02 | Phase 1 | Pending |
+| VOICE-03 | Phase 2 | Pending |
+| VOICE-04 | Phase 2 | Pending |
+| VOICE-05 | Phase 2 | Pending |
+| ACT-01 | Phase 2 | Pending |
+| ACT-02 | Phase 2 | Pending |
+| ACT-03 | Phase 3 | Pending |
+| ACT-04 | Phase 3 | Pending |
+| ACT-05 | Phase 3 | Pending |
+| ACT-06 | Phase 2 | Pending |
+| AGENTIC-01 | Phase 4 | Pending |
+| AGENTIC-02 | Phase 4 | Pending |
+| AGENTIC-03 | Phase 4 | Pending |
+| AGENTIC-04 | Phase 4 | Pending |
+| AGENTIC-05 | Phase 4 | Pending |
+| LLM-01 | Phase 3 | Pending |
+| LLM-02 | Phase 3 | Pending |
+| LLM-03 | Phase 3 | Pending |
+| LLM-04 | Phase 2 | Pending |
+| LLM-05 | Phase 3 | Pending |
+| LLM-06 | Phase 3 | Pending |
+| PRIV-01 | Phase 3 | Pending |
+| PRIV-02 | Phase 3 | Pending |
+| COMP-01 | Phase 3 | Pending |
+| COMP-02 | Phase 3 | Pending |
+| COMP-03 | Phase 3 | Pending |
+| COMP-04 | Phase 3 | Pending |
+| UX-01 | Phase 4 | Pending |
+| UX-02 | Phase 4 | Pending |
+| UX-03 | Phase 4 | Pending |
+| DEMO-01 | Phase 5 | Pending |
+| DEMO-02 | Phase 5 | Pending |
+| DEMO-03 | Phase 5 | Pending |
+| DEMO-04 | Phase 1 | Pending |
+| DEMO-05 | Phase 5 | Pending |
+| DEMO-06 | Phase 5 | Pending |
+| DEMO-07 | Phase 5 | Pending |
+| DEMO-08 | Phase 5 | Pending |
+| DEMO-09 | Phase 5 | Pending |
+| DEMO-10 | Phase 5 | Pending |
+| SUB-01 | Phase 5 | Pending |
+| SUB-02 | Phase 5 | Pending |
 
 **Coverage:**
-- v1 requirements: 56 total (a confirmar tras roadmap)
-- Mapped to phases: 0 (pendiente)
-- Unmapped: 56 ⚠️
+- v1 requirements: 56 total
+- Mapped to phases: 56 ✓
+- Unmapped: 0 ✓
+
+**Distribución por fase:**
+- Phase 1 (Foundation & Sync): 13 requirements
+- Phase 2 (Vertical Slice Mínimo): 8 requirements
+- Phase 3 (Motor Completo + Compañero): 15 requirements
+- Phase 4 (Loop Agéntico + UX Senior): 9 requirements
+- Phase 5 (Demo Readiness): 11 requirements
 
 ---
 *Requirements defined: 2026-05-09*
-*Last updated: 2026-05-09 after initial definition*
+*Last updated: 2026-05-09 — traceability completada por gsd-roadmapper*
