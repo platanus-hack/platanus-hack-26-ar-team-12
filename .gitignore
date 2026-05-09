@@ -32,3 +32,9 @@ android/.idea/
 
 # Docs
 *.pdf
+
+# skills
+.gemini/
+.claude/
+.codex/
+.agent/
