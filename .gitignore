@@ -3,6 +3,7 @@
 .vscode/
 .antigravity/
 
+node_modules/
 
 # env files
 .env
