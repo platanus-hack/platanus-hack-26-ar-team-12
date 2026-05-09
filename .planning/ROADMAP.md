@@ -32,7 +32,10 @@ Beto se construye en 24-36 horas mediante 5 fases que entregan capacidades end-t
   2. Al primer boot del servicio, Beto dice por voz "Hola, soy Beto. Estoy acá para ayudarte." en español argentino sin race condition.
   3. Si falta un permiso crítico (overlay, accessibility o TTS), Beto avisa por voz qué falta en lugar de crashear silenciosamente.
   4. Cualquier dev puede emitir un `AgentEvent` desde un componente y otro componente puede recibirlo en `SharedFlow` sin colisiones de contrato.
-**Plans**: TBD
+**Plans**: 3 plans
+  - [ ] 01-PLAN-01-gradle-manifest-services.md — Gradle skeleton + manifest + permisos + accessibility config + Firebase placeholder (SETUP-01..04)
+  - [ ] 01-PLAN-02-contracts-application-preflight.md — AgentBus + AgentEvents + ToolDescriptors stubs + BetoApplication (Timber+TTS) + MainActivity preflight + AccessibilityService skeleton (SETUP-05, BUS-01..03, VOICE-01..02, DEMO-04)
+  - [ ] 01-PLAN-03-foreground-service-overlay-bubble.md — BetoForegroundService + OverlayManager + OverlayBubble (drag+magnet+tap/long-press) — Walking Skeleton final (OVERLAY-01..02)
 
 ### Phase 2: Vertical Slice Mínimo (Plan C Offline)
 **Goal**: El usuario toca la burbuja, dice "mandale a mi nieto que ya llegué", y WhatsApp se abre con el mensaje pre-llenado al contacto correcto, todo sin internet y sin LLM, con confirmación por voz.
@@ -92,7 +95,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Sync de Hora 0 | 0/TBD | Not started | - |
+| 1. Foundation & Sync de Hora 0 | 0/3 | Not started | - |
 | 2. Vertical Slice Mínimo (Plan C Offline) | 0/TBD | Not started | - |
 | 3. Motor de Acciones Completo + Compañero | 0/TBD | Not started | - |
 | 4. Loop Agéntico de Respaldo + UX Senior | 0/TBD | Not started | - |
