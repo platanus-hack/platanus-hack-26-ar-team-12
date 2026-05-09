@@ -61,6 +61,16 @@ Wave 1 paraleliza 04-01 y 04-02. Wave 2 (04-03 y 04-04) consume las primitivas d
 - Cambio de voz dinámico según contexto (Beto "más serio" vs "más cariñoso") — v2.
 - Memoria episódica de conversaciones del Compañero — v2 (con consentimiento).
 
+## Skill auxiliar al ejecutar (Enzo, local-only)
+
+Cuando arranquemos a ejecutar Phase 4 — especialmente el plan **04-02** (BetoTheme + bubble states) — consultar la skill `ui-ux-pro-max` instalada en `.claude/skills/ui-ux-pro-max/` (gitignored, no afecta a teammates):
+
+- Validar la paleta de los 5 estados (idle/listening/thinking/speaking/error) contra reglas WCAG AA del skill (96 paletas indexadas).
+- Buscar font pairing recomendado para senior UX (57 pairings indexados).
+- Cross-check contra las 99 guidelines de UX con prioridad accesibilidad.
+
+No es obligatorio. Es una herramienta para refinar tokens del `BetoTheme` cuando llegue el momento. Pueden aplicarla con: *"Lee `.claude/skills/ui-ux-pro-max/data/` y proponeme paletas accesibles para los 5 estados de la burbuja."*.
+
 ## Dependencies on Phase 3 code
 
 - `LlmClient` — usado por `PhraseGenerator` (04-01) y `CompanionViewModel` (04-03) y `GuideController` (04-04).
