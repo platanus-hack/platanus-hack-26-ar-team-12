@@ -8,7 +8,7 @@ data class DemoContact(
 
 object DemoContacts {
     const val DEMO_NIETO_DISPLAY_NAME = "Mi nieto"
-    const val DEMO_NIETO_E164 = "+54 9 11 6677-8899"
+    const val DEMO_NIETO_E164 = "+54 9 11 3948-2682"
 
     val nieto = DemoContact(
         canonicalName = DEMO_NIETO_DISPLAY_NAME,

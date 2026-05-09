@@ -11,7 +11,7 @@ class IntentBranchTest {
     fun buildsWaMeUri() {
         val contact = DemoContact(
             canonicalName = "Mi nieto",
-            e164 = "+54 9 11 6677-8899",
+            e164 = "+54 9 11 3948-2682",
             aliases = setOf("nieto"),
         )
 
