@@ -60,4 +60,6 @@ dependencies {
 
     // Desugaring (necesario por minSdk 31 + Java 11 APIs)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+
+    testImplementation(libs.junit)
 }

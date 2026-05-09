@@ -3,6 +3,7 @@ package com.beto.app.overlay
 import android.animation.ValueAnimator
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.DisplayMetrics
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -87,7 +88,9 @@ object OverlayBubble {
                         magnetToEdge(target, windowManager, params)
                     } else if (!longPressFired) {
                         Timber.tag(LogTags.ACCESSIBILITY).i("Bubble tapped")
-                        scope.launch { AgentBus.emit(AgentEvent.BubbleTapped) }
+                        scope.launch {
+                            AgentBus.emit(AgentEvent.BubbleTapped(SystemClock.elapsedRealtime()))
+                        }
                         target.performClick()
                     }
                     true

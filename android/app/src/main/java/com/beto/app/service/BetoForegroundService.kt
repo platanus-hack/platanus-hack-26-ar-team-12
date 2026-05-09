@@ -13,18 +13,21 @@ import androidx.lifecycle.lifecycleScope
 import com.beto.app.BetoApplication
 import com.beto.app.MainActivity
 import com.beto.app.R
+import com.beto.app.action.PlanCController
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
 import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TtsManager
+import com.beto.app.voice.VoiceCaptureActivity
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class BetoForegroundService : LifecycleService() {
 
     private var bootGreetingPlayed = false
+    private lateinit var planCController: PlanCController
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -36,12 +39,40 @@ class BetoForegroundService : LifecycleService() {
         Timber.tag(LogTags.TTS).i("BetoForegroundService.onCreate")
         BetoApplication.ensureNotificationChannel(this)
         startForegroundCorrectly()
+        planCController = PlanCController(
+            context = this,
+            scope = lifecycleScope,
+            sendCommand = AgentBus::command,
+        )
 
         lifecycleScope.launch {
             AgentBus.commands.collect { command ->
-                if (command is AgentCommand.Speak) {
-                    Timber.tag(LogTags.TTS).d("Cmd Speak -> %s", command.text)
-                    TtsManager.speak(command.text)
+                when (command) {
+                    is AgentCommand.Speak -> {
+                        Timber.tag(LogTags.TTS).d("Cmd Speak -> %s", command.text)
+                        TtsManager.speak(command.text)
+                    }
+                    is AgentCommand.StartVoiceCapture -> {
+                        startActivity(VoiceCaptureActivity.startIntent(this@BetoForegroundService, command.startedAtMs))
+                    }
+                }
+            }
+        }
+
+        lifecycleScope.launch {
+            AgentBus.events.collect { event ->
+                when (event) {
+                    is AgentEvent.BubbleTapped -> {
+                        Timber.tag(LogTags.STT).i("Bubble tapped -> voice capture")
+                        planCController.startVoiceCapture(event.startedAtMs)
+                    }
+                    is AgentEvent.VoiceCaptured -> {
+                        planCController.onVoiceCaptured(event.text, event.elapsedMs)
+                    }
+                    is AgentEvent.VoiceCaptureFailed -> {
+                        planCController.onVoiceCaptureFailed(event.reason, event.elapsedMs)
+                    }
+                    else -> Unit
                 }
             }
         }

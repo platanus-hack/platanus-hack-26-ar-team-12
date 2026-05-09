@@ -33,6 +33,12 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".voice.VoiceCaptureActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/Theme.Beto.Transparent" />
+
         <!-- BetoForegroundService (Plan 03 lo implementa) — Pitfall #11 -->
         <service
             android:name=".service.BetoForegroundService"
