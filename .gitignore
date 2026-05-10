@@ -4,7 +4,7 @@
 .antigravity/
 
 node_modules/
-google-services.json
+android/app/google-services.json
 
 # env files
 .env
