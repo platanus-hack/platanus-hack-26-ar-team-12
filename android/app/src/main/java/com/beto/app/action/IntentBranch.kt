@@ -73,11 +73,17 @@ object IntentBranch {
                     CALL_PERMISSION_REQUEST,
                 )
             }
-            return ActionResult.Failed("missing_call_permission")
+            return openDialer(context, phoneE164)
         }
         val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$phoneE164"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return tryStart(context, intent, "make_call")
+    }
+
+    private fun openDialer(context: Context, phoneE164: String): ActionResult {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneE164"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return tryStart(context, intent, "make_call_dial_fallback")
     }
 
     fun sendSms(context: Context, phoneE164: String, message: String): ActionResult {

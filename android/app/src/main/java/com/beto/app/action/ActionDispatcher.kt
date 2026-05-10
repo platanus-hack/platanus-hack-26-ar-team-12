@@ -45,7 +45,7 @@ class ActionDispatcher(
         when (val routed = ActionRouter.routeDecision(decision)) {
             is RouteOutcome.ExecuteTool -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_LLM_DECISION tool=%s", routed.call.tool)
-                executeTool(routed.call)
+                executeTool(routed.call, transcript)
             }
             is RouteOutcome.Clarify -> handleClarification(routed.decision, transcript)
             RouteOutcome.Unknown -> failDidNotUnderstand()
@@ -67,7 +67,7 @@ class ActionDispatcher(
         }
     }
 
-    private suspend fun executeTool(call: Decision.ToolCall) {
+    private suspend fun executeTool(call: Decision.ToolCall, transcript: String) {
         when (call.tool) {
             ToolDescriptors.OPEN_MAPS -> executeMaps(call.args["query"].orEmpty())
             ToolDescriptors.MAKE_CALL -> {
@@ -81,7 +81,10 @@ class ActionDispatcher(
                     failDidNotUnderstand()
                     return
                 }
-                val channel = if (call.tool == ToolDescriptors.SEND_WHATSAPP) Channel.WHATSAPP else Channel.SMS
+                val channel = explicitChannelFromTranscript(transcript)
+                    ?: memory.preferredChannel(contact)
+                    ?: channelClarifier.clarify(contact)
+                    ?: return
                 executeChannel(contact, channel, message)
             }
             else -> failDidNotUnderstand()
@@ -219,4 +222,15 @@ class ActionDispatcher(
             ?.getOrNull(1)
             ?.trim()
             .orEmpty()
+
+    private fun explicitChannelFromTranscript(transcript: String): Channel? {
+        val normalized = transcript.lowercase(Locale("es", "AR"))
+        return when {
+            "whatsapp" in normalized || "wasap" in normalized -> Channel.WHATSAPP
+            "sms" in normalized -> Channel.SMS
+            "mensaje de texto" in normalized -> Channel.SMS
+            "llamada" in normalized || "telefono" in normalized || "teléfono" in normalized -> Channel.CALL
+            else -> null
+        }
+    }
 }
