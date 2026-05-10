@@ -2,14 +2,9 @@ package com.beto.app.llm
 
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TranscriptCorrectionClient
-import com.google.firebase.Firebase
-import com.google.firebase.ai.GenerativeModel
-import com.google.firebase.ai.ai
-import com.google.firebase.ai.type.GenerativeBackend
-import com.google.firebase.ai.type.generationConfig
 import timber.log.Timber
 
-class GeminiLlmClient(
+class ClaudeLlmClient(
     private val cache: LlmCache = LlmCache(),
     private val generateContent: suspend (String) -> String = defaultGenerator(),
 ) : LlmClient, TranscriptCorrectionClient {
@@ -67,27 +62,11 @@ class GeminiLlmClient(
         }.getOrDefault("")
 
     companion object {
-        private const val MODEL_NAME = "gemini-2.5-flash"
-
-        private fun defaultGenerator(): suspend (String) -> String {
-            val model: GenerativeModel = Firebase.ai(backend = GenerativeBackend.googleAI())
-                .generativeModel(
-                    modelName = MODEL_NAME,
-                    generationConfig = generationConfig {
-                        temperature = 0f
-                        maxOutputTokens = 512
-                        responseMimeType = "application/json"
-                    },
-                )
-            return { prompt -> model.generateContent(prompt).text.orEmpty() }
+        private fun defaultGenerator(): suspend (String) -> String = { prompt ->
+            AnthropicClientHolder.complete(
+                prompt = prompt,
+                maxTokens = 512,
+            )
         }
     }
 }
-
-/*
-Fallback sketch if Gemini underperforms in es-AR:
-
-class AnthropicLlmClient : LlmClient {
-    override suspend fun interpret(rawTranscript: String): Decision = Decision.Unknown
-}
-*/

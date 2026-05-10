@@ -1,13 +1,9 @@
 package com.beto.app.companion
 
+import com.beto.app.llm.AnthropicClientHolder
 import com.beto.app.llm.PromptBuilder
 import com.beto.app.llm.Sanitizer
 import com.beto.app.util.LogTags
-import com.google.firebase.Firebase
-import com.google.firebase.ai.GenerativeModel
-import com.google.firebase.ai.ai
-import com.google.firebase.ai.type.GenerativeBackend
-import com.google.firebase.ai.type.generationConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,9 +15,9 @@ interface CompanionChatClient {
 }
 
 /**
- * Cliente del Modo Compañero. Modelo separado del Motor de Acciones para no interferir:
- *  - `gemini-2.5-flash-lite` con `temperature: 0.4` para chat (tono natural).
- *  - `gemini-2.5-flash-lite` con `temperature: 0` para extracción JSON de hechos.
+ * Cliente del Modo Compañero sobre Claude Haiku 4.5.
+ *  - Chat: temperature 0.4, maxTokens 200 (tono natural).
+ *  - Fact extraction: temperature 0, maxTokens 80 (JSON estricto).
  *
  * Sanitizer aplicado a CADA mensaje del historial antes de mandarlo al LLM.
  */
@@ -64,31 +60,19 @@ class CompanionLlmClient(
     }.getOrNull()
 
     companion object {
-        private const val MODEL_NAME = "gemini-2.5-flash-lite"
-
-        private fun defaultChatGenerator(): suspend (String) -> String {
-            val model: GenerativeModel = Firebase.ai(backend = GenerativeBackend.googleAI())
-                .generativeModel(
-                    modelName = MODEL_NAME,
-                    generationConfig = generationConfig {
-                        temperature = 0.4f
-                        maxOutputTokens = 200
-                    },
-                )
-            return { prompt -> model.generateContent(prompt).text.orEmpty() }
+        private fun defaultChatGenerator(): suspend (String) -> String = { prompt ->
+            AnthropicClientHolder.complete(
+                prompt = prompt,
+                maxTokens = 200,
+            )
         }
 
-        private fun defaultFactGenerator(): suspend (String) -> String {
-            val model: GenerativeModel = Firebase.ai(backend = GenerativeBackend.googleAI())
-                .generativeModel(
-                    modelName = MODEL_NAME,
-                    generationConfig = generationConfig {
-                        temperature = 0f
-                        maxOutputTokens = 80
-                        responseMimeType = "application/json"
-                    },
-                )
-            return { prompt -> model.generateContent(prompt).text.orEmpty() }
+        private fun defaultFactGenerator(): suspend (String) -> String = { prompt ->
+            AnthropicClientHolder.complete(
+                prompt = prompt,
+                maxTokens = 80,
+                system = "Respondé SOLO con JSON válido con la estructura {\"fact\":{\"category\":\"...\",\"fact\":\"...\"}}.",
+            )
         }
     }
 }

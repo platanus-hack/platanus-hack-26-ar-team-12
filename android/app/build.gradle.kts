@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -16,7 +18,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        val localProps = java.util.Properties().apply {
+        val localProps = Properties().apply {
             val f = rootProject.file("local.properties")
             if (f.exists()) f.inputStream().use { load(it) }
         }
@@ -49,6 +51,24 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+    }
+
+    packaging {
+        resources {
+            // anthropic-java trae httpclient5 + httpcore5 (transitive) que duplican
+            // META-INF/{DEPENDENCIES,LICENSE,NOTICE}. Resolución estándar AGP.
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/INDEX.LIST",
+                "META-INF/*.kotlin_module",
+            )
+        }
     }
 }
 

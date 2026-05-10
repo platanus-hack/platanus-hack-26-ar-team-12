@@ -24,7 +24,7 @@ import com.beto.app.bus.AgentEvent
 import com.beto.app.companion.CompanionActivity
 import com.beto.app.contacts.ContactRepository
 import com.beto.app.guide.GuideController
-import com.beto.app.llm.GeminiLlmClient
+import com.beto.app.llm.ClaudeLlmClient
 import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TtsManager
@@ -74,7 +74,7 @@ class BetoForegroundService : LifecycleService() {
         guideController = GuideController(context = applicationContext)
         actionDispatcher = ActionDispatcher(
             context = this,
-            llm = GeminiLlmClient(),
+            llm = ClaudeLlmClient(),
             memory = BetoApplication.userMemoryStore,
             contacts = contacts,
             contactClarifier = contactClarifier,

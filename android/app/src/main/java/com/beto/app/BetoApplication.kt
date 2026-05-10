@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import androidx.core.content.getSystemService
-import com.beto.app.llm.GeminiLlmClient
+import com.beto.app.llm.ClaudeLlmClient
 import com.beto.app.memory.UserMemoryStore
 import com.beto.app.util.LogTags
 import com.beto.app.voice.PhraseGenerator
@@ -36,7 +36,7 @@ class BetoApplication : Application() {
         ensureNotificationChannel(this)
 
         userMemoryStore = UserMemoryStore(this)
-        phraseGenerator = PhraseGenerator(GeminiLlmClient())
+        phraseGenerator = PhraseGenerator(ClaudeLlmClient())
         // Warm cache en background — pre-genera frases comunes para que la primera
         // interacción no espere al LLM. No bloquea boot.
         phraseGenerator.warmCache()
