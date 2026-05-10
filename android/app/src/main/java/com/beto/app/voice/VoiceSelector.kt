@@ -29,13 +29,21 @@ object VoiceSelector {
         "es-ES-Alvaro-Neural", "es-ES-Alvaro",
         "es-CL-Lorenzo-Neural",
         "es-CO-Gonzalo-Neural",
+        // Google TTS local (offline) — naming scheme es-XX-language-X-male/female
+        "es-es-x-eea-local",
+        "es-es-x-eee-local",
+        "es-us-x-esd-local",
+        "es-us-x-esf-local",
     )
 
     /** Tokens en el nombre de la voz que hacen probable que sea masculina. */
     val MALE_NAME_HINTS: Set<String> = setOf(
         "tomas", "jorge", "alvaro", "andres", "diego", "pablo",
         "carlos", "javier", "manuel", "miguel", "lorenzo", "gonzalo",
-        "male", "_m_", "man",
+        "luis", "juan", "daniel", "fernando", "raul", "sergio",
+        "male", "_m_", "-m-", " m ", "man",
+        // Google offline naming includes -x-eea / -x-esd codes that are male
+        "-eea-", "-eee-", "-esd-", "-esf-",
     )
 
     /** Tokens que hacen probable que sea femenina (deprioritized). */

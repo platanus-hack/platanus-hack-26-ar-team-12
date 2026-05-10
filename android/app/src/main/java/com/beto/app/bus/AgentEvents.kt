@@ -72,6 +72,21 @@ sealed class AgentEvent {
     /** BetoAccessibilityService o BetoForegroundService onDestroy. */
     object ServiceStopped : AgentEvent()
 
+    /** CompanionActivity abierta — el ForegroundService oculta la burbuja para no duplicar agentes. */
+    object CompanionOpened : AgentEvent()
+
+    /** CompanionActivity cerrada — el ForegroundService re-muestra la burbuja. */
+    object CompanionClosed : AgentEvent()
+
+    /** El chat envió un mensaje (texto o transcrito). FGS lo rutea por el ActionDispatcher. */
+    data class ChatMessageSent(val text: String) : AgentEvent()
+
+    /** El motor de acciones decidió hablar al usuario. Chat lo muestra como bubble de Beto. */
+    data class BetoReplied(val text: String) : AgentEvent()
+
+    /** Nivel de RMS del SpeechRecognizer (-2..10 dB típicamente). Para visualizer reactivo. */
+    data class SttRmsChanged(val rmsdB: Float) : AgentEvent()
+
     // TODO Phase 2-3: IntentClassified(toolCall: ToolCall), ActionExecuted(name: String), ToolFailed(name: String, reason: String)
     // TODO Phase 4: TreeSnapshot(nodeRefs: List<NodeRef>), AgenticIterationComplete(iter: Int), AgenticAborted(reason: String)
 }
@@ -86,4 +101,7 @@ sealed class AgentCommand {
 
     /** Long-press en la burbuja → abre el Modo Compañero (Phase 4-03). */
     object OpenCompanion : AgentCommand()
+
+    /** Cancela la captura de voz en curso (botón Stop del chat). */
+    object StopVoiceCapture : AgentCommand()
 }

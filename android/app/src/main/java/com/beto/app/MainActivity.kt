@@ -43,8 +43,35 @@ class MainActivity : Activity() {
             if (!TtsManager.isReady) {
                 delay(TTS_GRACE_MS)
             }
+            maybePromptVoiceInstall()
             handlePreflightResult(PreflightCheck.check(this@MainActivity))
         }
+    }
+
+    /**
+     * Si el device no tiene voz masculina disponible, abrimos UNA SOLA VEZ el flow del
+     * engine para instalar voces (ACTION_INSTALL_TTS_DATA). Persistimos el flag para no
+     * molestar en cada arranque.
+     */
+    private fun maybePromptVoiceInstall() {
+        if (TtsManager.selectedVoiceIsLikelyMale) return
+        val prefs = getSharedPreferences("beto_tts", MODE_PRIVATE)
+        if (prefs.getBoolean("voice_install_prompted", false)) return
+        prefs.edit().putBoolean("voice_install_prompted", true).apply()
+
+        val intent = Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { startActivity(intent) }
+            .onFailure {
+                // Fallback: abrí los settings de voz para que el user instale a mano.
+                runCatching {
+                    startActivity(
+                        Intent("com.android.settings.TTS_SETTINGS")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+                Timber.tag(LogTags.TTS).w(it, "ACTION_INSTALL_TTS_DATA failed — fell back to settings")
+            }
     }
 
     private fun handlePreflightResult(result: com.beto.app.util.PreflightResult) {

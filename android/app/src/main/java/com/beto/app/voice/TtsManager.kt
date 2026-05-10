@@ -38,7 +38,8 @@ object TtsManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val pendingContinuations: ConcurrentHashMap<String, CancellableContinuation<Unit>> = ConcurrentHashMap()
     private var selectedVoiceName: String? = null
-    private var selectedVoiceIsLikelyMale: Boolean = false
+    @Volatile var selectedVoiceIsLikelyMale: Boolean = false
+        private set
 
     private val LOCALE_CASCADE = listOf(
         Locale("es", "AR"),
@@ -82,6 +83,17 @@ object TtsManager {
     private fun applyBestVoice() {
         val engine = tts ?: return
         val voices = runCatching { engine.voices.orEmpty() }.getOrElse { emptySet() }
+        // Diagnóstico: listar voces es-* disponibles para verificar si el device tiene voces masculinas instaladas.
+        voices.filter { it.locale?.language == "es" }.forEach { v ->
+            Timber.tag(LogTags.TTS).d(
+                "VOICE_AVAILABLE name=%s locale=%s quality=%s network=%s features=%s",
+                v.name,
+                v.locale,
+                v.quality,
+                v.isNetworkConnectionRequired,
+                v.features,
+            )
+        }
         val best = VoiceSelector.selectBest(voices)
         if (best == null) {
             Timber.tag(LogTags.TTS).w("VOICE_SELECTED none — no Spanish voice found")

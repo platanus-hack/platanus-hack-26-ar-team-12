@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Foreground del adaptive icon — rellena los 108dp completos para que el launcher
+     no muestre safe-area inset (que era lo que generaba el "doble marco"). -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/project_logo"
+    android:gravity="fill" />

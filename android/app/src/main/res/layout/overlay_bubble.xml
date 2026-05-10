@@ -20,22 +20,23 @@
         android:background="@drawable/bubble_ring_solid"
         android:backgroundTint="@color/beto_state_idle" />
 
-    <View
+    <FrameLayout
         android:id="@+id/bubble_inner"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_margin="@dimen/beto_bubble_ring_width"
-        android:background="@drawable/bubble_inner_circle" />
+        android:background="@drawable/bubble_inner_circle"
+        android:clipChildren="true"
+        android:clipToOutline="true">
 
-    <ImageView
-        android:id="@+id/bubble_logo"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:contentDescription="@string/app_name"
-        android:padding="10dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/project_logo" />
+        <ImageView
+            android:id="@+id/bubble_logo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/app_name"
+            android:scaleType="centerCrop"
+            android:src="@drawable/project_logo" />
+    </FrameLayout>
 
     <FrameLayout
         android:id="@+id/bubble_state_icon_container"

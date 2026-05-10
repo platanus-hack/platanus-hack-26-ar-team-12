@@ -135,12 +135,17 @@ class ActionDispatcher(
     private suspend fun resolveContactOrClarify(contactArg: String): ContactRef? {
         val normalized = contactArg.trim()
         if (normalized.isBlank()) {
+            Timber.tag(LogTags.ACTION).w("CONTACT_RESOLVE empty arg")
             failDidNotUnderstand()
             return null
         }
 
-        memory.resolveAlias(normalized)?.let { return it }
+        memory.resolveAlias(normalized)?.let {
+            Timber.tag(LogTags.ACTION).d("CONTACT_RESOLVE alias_hit arg=%s -> %s", normalized, it.displayName)
+            return it
+        }
         val matches = contacts.resolve(normalized)
+        Timber.tag(LogTags.ACTION).d("CONTACT_RESOLVE arg=%s matches=%d", normalized, matches.size)
         return when (matches.size) {
             1 -> matches.single().toContactRef()
             0 -> contactClarifier.clarify(normalized)

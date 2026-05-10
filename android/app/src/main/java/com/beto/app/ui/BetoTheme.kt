@@ -41,16 +41,26 @@ private val BetoColorsLight = lightColorScheme(
     outline = Color(0xFF424242),
 )
 
-// Dark mode reservado v2 — adultos mayores prefieren light + alto contraste.
+// Dark palette para el chat unificado (CompanionActivity) — fondo negro con detalles claros.
 private val BetoColorsDark = darkColorScheme(
     primary = Color(0xFF90CAF9),
-    onPrimary = Color(0xFF0D47A1),
-    background = Color(0xFF121212),
-    onBackground = Color.White,
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color.White,
+    onPrimary = Color(0xFF0D2A4E),
+    primaryContainer = Color(0xFF1E3A5F),
+    onPrimaryContainer = Color(0xFFE3F2FD),
+    secondary = Color(0xFFA5D6A7),
+    onSecondary = Color(0xFF1B5E20),
+    secondaryContainer = Color(0xFF2A2A2A),
+    onSecondaryContainer = Color(0xFFE0E0E0),
+    background = Color(0xFF000000),
+    onBackground = Color(0xFFE0E0E0),
+    surface = Color(0xFF0E0E0E),
+    onSurface = Color(0xFFE0E0E0),
+    surfaceVariant = Color(0xFF1A1A1A),
+    onSurfaceVariant = Color(0xFFBDBDBD),
     error = Color(0xFFEF9A9A),
-    onError = Color(0xFFB71C1C),
+    onError = Color(0xFF601410),
+    outline = Color(0xFF555555),
+    outlineVariant = Color(0xFF2A2A2A),
 )
 
 val BetoTypography: Typography = Typography(

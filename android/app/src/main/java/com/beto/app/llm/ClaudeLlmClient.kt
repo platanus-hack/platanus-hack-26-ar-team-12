@@ -23,11 +23,16 @@ class ClaudeLlmClient(
                 return Decision.Unknown
             }
 
-        val decision = parseDecision(response)
+        val decision = parseDecision(response).also {
+            if (it == null) Timber.tag(LogTags.LLM).w("LLM_PARSE_FAILED raw=%s", response.take(300))
+        }
             ?: parseDecision(retryPrompt(prompt, response))
             ?: Decision.Unknown
 
-        cache.put(sanitized, decision)
+        // Solo cachear decisiones útiles — un Unknown cacheado envenena retries del mismo input.
+        if (decision !is Decision.Unknown) {
+            cache.put(sanitized, decision)
+        }
         return decision
     }
 
@@ -62,9 +67,14 @@ class ClaudeLlmClient(
         }.getOrDefault("")
 
     companion object {
+        private const val INTERPRET_SYSTEM = """
+Sos un parser estricto. Respondé EXCLUSIVAMENTE con un objeto JSON válido que matchee el schema indicado en el user prompt. Sin markdown, sin ```json, sin texto antes o después, sin explicaciones. Solo el objeto JSON crudo empezando con { y terminando con }.
+"""
+
         private fun defaultGenerator(): suspend (String) -> String = { prompt ->
             AnthropicClientHolder.complete(
                 prompt = prompt,
+                system = INTERPRET_SYSTEM.trim(),
                 maxTokens = 512,
             )
         }

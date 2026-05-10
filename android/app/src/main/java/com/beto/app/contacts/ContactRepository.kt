@@ -31,7 +31,28 @@ class ContactRepository(
         if (trimmed.isEmpty()) return emptyList()
         if (!hasPermission()) return demoFallback(trimmed)
 
-        return dataSource.searchByName(trimmed).map { it.toContactInfo(dataSource) }
+        val direct = dataSource.searchByName(trimmed).map { it.toContactInfo(dataSource) }
+        if (direct.isNotEmpty()) return direct
+
+        // Fallback fuzzy: el CONTENT_FILTER_URI a veces no matchea por acentos, prefijos cortos
+        // o nombres compuestos. Recorremos los contactos del usuario normalizando.
+        val needle = normalize(trimmed)
+        if (needle.isEmpty()) return emptyList()
+        return dataSource.listContacts(limit = 500)
+            .filter { row ->
+                val haystack = normalize(row.displayName)
+                haystack == needle ||
+                    haystack.split(" ").any { it == needle } ||
+                    haystack.contains(needle)
+            }
+            .map { it.toContactInfo(dataSource) }
+    }
+
+    /** Quita acentos, baja a minúsculas y compacta espacios. */
+    private fun normalize(value: String): String {
+        val noAccents = java.text.Normalizer.normalize(value.lowercase(), java.text.Normalizer.Form.NFD)
+            .replace("\\p{Mn}+".toRegex(), "")
+        return noAccents.replace("[^a-z0-9 ]+".toRegex(), " ").replace("\\s+".toRegex(), " ").trim()
     }
 
     fun findByPhone(phone: String): ContactInfo? {

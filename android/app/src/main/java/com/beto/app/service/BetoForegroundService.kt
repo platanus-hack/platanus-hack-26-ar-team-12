@@ -29,7 +29,11 @@ import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TtsManager
 import com.beto.app.voice.VoiceCaptureActivity
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 import timber.log.Timber
@@ -42,6 +46,8 @@ class BetoForegroundService : LifecycleService() {
     private val clarificationCaptureActive = AtomicBoolean(false)
     private val handledClarificationTranscripts = Collections.synchronizedSet(mutableSetOf<String>())
     private val guideActive = AtomicBoolean(false)
+    private val companionActive = AtomicBoolean(false)
+    private val ttsActive = AtomicBoolean(false)
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -93,12 +99,41 @@ class BetoForegroundService : LifecycleService() {
                         TtsManager.speak(command.text)
                     }
                     is AgentCommand.StartVoiceCapture -> {
-                        startActivity(VoiceCaptureActivity.startIntent(this@BetoForegroundService, command.startedAtMs))
+                        if (ttsActive.get()) {
+                            Timber.tag(LogTags.STT).i("StartVoiceCapture deferred — TTS active (anti-loop)")
+                            // Esperá a que termine TTS + un pequeño grace period antes de abrir mic.
+                            // Evita que Beto se escuche a sí mismo.
+                            launch {
+                                withTimeoutOrNull(8_000L) {
+                                    AgentBus.events
+                                        .filterIsInstance<AgentEvent.TtsSpoke>()
+                                        .first()
+                                }
+                                delay(GRACE_AFTER_TTS_MS)
+                                startActivity(
+                                    VoiceCaptureActivity.startIntent(
+                                        this@BetoForegroundService,
+                                        command.startedAtMs,
+                                    ),
+                                )
+                            }
+                        } else {
+                            startActivity(
+                                VoiceCaptureActivity.startIntent(
+                                    this@BetoForegroundService,
+                                    command.startedAtMs,
+                                ),
+                            )
+                        }
                     }
                     AgentCommand.OpenCompanion -> {
                         val intent = Intent(this@BetoForegroundService, CompanionActivity::class.java)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(intent)
+                    }
+                    AgentCommand.StopVoiceCapture -> {
+                        // Lo consume VoiceCaptureActivity directamente vía bus collector.
+                        // No-op acá — solo lo dejamos pasar por el bus.
                     }
                 }
             }
@@ -119,13 +154,23 @@ class BetoForegroundService : LifecycleService() {
                     is AgentEvent.GuideStarted -> guideActive.set(true)
                     is AgentEvent.GuideEnded -> guideActive.set(false)
                     is AgentEvent.GuideCancelled -> guideActive.set(false)
+                    is AgentEvent.TtsStarted -> ttsActive.set(true)
+                    is AgentEvent.TtsSpoke -> ttsActive.set(false)
+                    is AgentEvent.TtsFailed -> ttsActive.set(false)
                     is AgentEvent.VoiceCaptured -> {
                         if (
                             clarificationCaptureActive.get() ||
-                            handledClarificationTranscripts.remove(event.text)
+                            handledClarificationTranscripts.remove(event.text) ||
+                            companionActive.get()
                         ) {
+                            // Si el chat está abierto, el chat captura el VoiceCaptured y lo
+                            // re-emite como ChatMessageSent (con un mensaje USER en la UI).
                             return@collect
                         }
+                        actionDispatcher.handle(event.text)
+                    }
+                    is AgentEvent.ChatMessageSent -> {
+                        Timber.tag(LogTags.ACTION).d("CHAT_MESSAGE_DISPATCH text=%s", event.text)
                         actionDispatcher.handle(event.text)
                     }
                     is AgentEvent.VoiceCaptureFailed -> {
@@ -138,6 +183,16 @@ class BetoForegroundService : LifecycleService() {
                     is AgentEvent.BubbleCloseRequested -> {
                         Timber.tag(LogTags.TTS).i("Bubble close requested -> stopping Beto")
                         stopSelf()
+                    }
+                    AgentEvent.CompanionOpened -> {
+                        Timber.tag(LogTags.ACCESSIBILITY).i("Companion opened -> hiding bubble")
+                        companionActive.set(true)
+                        OverlayManager.hide(this@BetoForegroundService)
+                    }
+                    AgentEvent.CompanionClosed -> {
+                        Timber.tag(LogTags.ACCESSIBILITY).i("Companion closed -> re-showing bubble")
+                        companionActive.set(false)
+                        OverlayManager.show(this@BetoForegroundService)
                     }
                     else -> Unit
                 }
@@ -221,6 +276,7 @@ class BetoForegroundService : LifecycleService() {
     companion object {
         const val NOTIFICATION_ID = 1001
         private const val ACTION_STOP = "com.beto.app.service.STOP"
+        private const val GRACE_AFTER_TTS_MS = 400L
 
         fun startIntent(context: Context): Intent =
             Intent(context, BetoForegroundService::class.java)

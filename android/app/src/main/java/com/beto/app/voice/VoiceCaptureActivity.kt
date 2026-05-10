@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -39,6 +40,17 @@ class VoiceCaptureActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         startedAtMs = intent.getLongExtra(EXTRA_STARTED_AT_MS, SystemClock.elapsedRealtime())
+
+        // Listener para que el chat (botón Stop) pueda cancelar la captura.
+        scope.launch {
+            AgentBus.commands
+                .filterIsInstance<com.beto.app.bus.AgentCommand.StopVoiceCapture>()
+                .collect {
+                    Timber.tag(LogTags.STT).i("StopVoiceCapture received -> finishing")
+                    runCatching { recognizer?.stopListening() }
+                    emitFailure("user_cancelled")
+                }
+        }
     }
 
     override fun onResume() {
@@ -58,6 +70,11 @@ class VoiceCaptureActivity : Activity() {
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            // Timeouts más largos para usuarios senior — los abuelos hablan más lento y hacen
+            // pausas más largas mid-frase. Sin esto el STT corta a los ~1.5s de silencio default.
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 2500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3500L)
             putExtra(
                 RecognizerIntent.EXTRA_PREFER_OFFLINE,
                 preferOnDeviceRecognizer && RecognizerFactory.shouldPreferOffline(this@VoiceCaptureActivity),
@@ -165,7 +182,10 @@ class VoiceCaptureActivity : Activity() {
         override fun onBeginningOfSpeech() {
             speechStarted = true
         }
-        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onRmsChanged(rmsdB: Float) {
+            // Emit non-blocking; listener corre en thread del recognizer.
+            scope.launch { AgentBus.emit(AgentEvent.SttRmsChanged(rmsdB)) }
+        }
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
         override fun onPartialResults(partialResults: Bundle?) = Unit
