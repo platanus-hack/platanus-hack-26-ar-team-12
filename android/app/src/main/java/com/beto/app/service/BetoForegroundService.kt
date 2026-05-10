@@ -13,21 +13,29 @@ import androidx.lifecycle.lifecycleScope
 import com.beto.app.BetoApplication
 import com.beto.app.MainActivity
 import com.beto.app.R
-import com.beto.app.action.PlanCController
+import com.beto.app.action.ActionDispatcher
+import com.beto.app.action.AgentBusVoiceCapture
+import com.beto.app.action.ChannelClarifier
+import com.beto.app.action.ContactClarifier
+import com.beto.app.action.TtsSpeaker
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
+import com.beto.app.contacts.ContactRepository
+import com.beto.app.llm.GeminiLlmClient
 import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TtsManager
 import com.beto.app.voice.VoiceCaptureActivity
 import kotlinx.coroutines.launch
+import java.util.Collections
 import timber.log.Timber
 
 class BetoForegroundService : LifecycleService() {
 
     private var bootGreetingPlayed = false
-    private lateinit var planCController: PlanCController
+    private lateinit var actionDispatcher: ActionDispatcher
+    private val handledClarificationTranscripts = Collections.synchronizedSet(mutableSetOf<String>())
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -39,10 +47,29 @@ class BetoForegroundService : LifecycleService() {
         Timber.tag(LogTags.TTS).i("BetoForegroundService.onCreate")
         BetoApplication.ensureNotificationChannel(this)
         startForegroundCorrectly()
-        planCController = PlanCController(
+        val speaker = TtsSpeaker()
+        val contacts = ContactRepository(this)
+        val voiceCapture = AgentBusVoiceCapture(this) { handledClarificationTranscripts.add(it) }
+        val contactClarifier = ContactClarifier(
+            speaker = speaker,
+            contacts = contacts,
+            memory = BetoApplication.userMemoryStore,
+            voiceCapture = voiceCapture,
+        )
+        val channelClarifier = ChannelClarifier(
+            speaker = speaker,
+            voiceCapture = voiceCapture,
+            memory = BetoApplication.userMemoryStore,
+        )
+        actionDispatcher = ActionDispatcher(
             context = this,
+            llm = GeminiLlmClient(),
+            memory = BetoApplication.userMemoryStore,
+            contacts = contacts,
+            contactClarifier = contactClarifier,
+            channelClarifier = channelClarifier,
+            speaker = speaker,
             scope = lifecycleScope,
-            sendCommand = AgentBus::command,
         )
 
         lifecycleScope.launch {
@@ -64,13 +91,14 @@ class BetoForegroundService : LifecycleService() {
                 when (event) {
                     is AgentEvent.BubbleTapped -> {
                         Timber.tag(LogTags.STT).i("Bubble tapped -> voice capture")
-                        planCController.startVoiceCapture(event.startedAtMs)
+                        AgentBus.command(AgentCommand.StartVoiceCapture(event.startedAtMs))
                     }
                     is AgentEvent.VoiceCaptured -> {
-                        planCController.onVoiceCaptured(event.text, event.elapsedMs)
+                        if (handledClarificationTranscripts.remove(event.text)) return@collect
+                        actionDispatcher.handle(event.text)
                     }
                     is AgentEvent.VoiceCaptureFailed -> {
-                        planCController.onVoiceCaptureFailed(event.reason, event.elapsedMs)
+                        TtsManager.speak("No te escuché bien. Probemos de nuevo, dale.")
                     }
                     is AgentEvent.BubbleLongPressed -> {
                         Timber.tag(LogTags.TTS).i("Bubble long-pressed -> stopping Beto")

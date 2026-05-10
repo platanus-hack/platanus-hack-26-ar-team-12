@@ -17,7 +17,7 @@ class IntentBranchTest {
 
         val spec = IntentBranch.buildWhatsappIntentSpec(contact, "ya llegue")
 
-        assertTrue(spec.uri.contains("https://wa.me/5491166778899?text=ya%20llegue"))
+        assertTrue(spec.uri.contains("https://wa.me/5491139482682?text=ya%20llegue"))
     }
 
     @Test
