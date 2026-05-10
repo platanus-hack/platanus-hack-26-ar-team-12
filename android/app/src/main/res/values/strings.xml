@@ -19,4 +19,11 @@
     <string name="tts_overlay_missing">Para ayudarte necesito permiso para mostrarme arriba de las apps. Te llevo a configurarlo.</string>
     <string name="tts_accessibility_missing">Necesito acceso a la accesibilidad para entender la pantalla. Te llevo a configurarlo.</string>
     <string name="tts_tts_missing">No pude prender mi voz. Probá reiniciar el teléfono.</string>
+
+    <!-- Contactos -->
+    <string name="contacts_permission_explanation">Para que Beto pueda llamar o mandar mensajes a tus contactos, necesitamos permiso para leer la libreta. Tus contactos no salen del teléfono.</string>
+    <string name="contacts_permission_granted_voice">Listo, ya tengo acceso a tus contactos.</string>
+    <string name="contacts_permission_denied_voice">Está bien, voy a usar los contactos de prueba.</string>
+    <string name="contacts_permission_button_grant">Dar permiso</string>
+    <string name="contacts_permission_button_skip">Continuar sin permiso</string>
 </resources>
