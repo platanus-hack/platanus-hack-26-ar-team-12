@@ -55,7 +55,8 @@ object TtsManager {
             return
         }
         Timber.tag(LogTags.TTS).d("init() — creating TextToSpeech")
-        tts = TextToSpeech(context.applicationContext) { status ->
+        val appContext = context.applicationContext
+        tts = TextToSpeech(appContext) { status ->
             if (status != TextToSpeech.SUCCESS) {
                 Timber.tag(LogTags.TTS).e("onInit FAIL status=%d", status)
                 emitFailed("init_failed:$status")
@@ -68,7 +69,7 @@ object TtsManager {
                 return@TextToSpeech
             }
             Timber.tag(LogTags.TTS).i("onInit SUCCESS — locale=%s", chosen)
-            applyBestVoice()
+            applyBestVoice(appContext)
             tts?.setOnUtteranceProgressListener(progressListener)
             isReady = true
             flushPending()
@@ -80,45 +81,77 @@ object TtsManager {
      * Loguea la voz elegida con `VOICE_SELECTED` o un warning si la heurística no encontró masculina
      * (para revisar manualmente al setup del device de demo).
      */
-    private fun applyBestVoice() {
+    private fun applyBestVoice(context: Context? = null) {
         val engine = tts ?: return
         val voices = runCatching { engine.voices.orEmpty() }.getOrElse { emptySet() }
-        // Diagnóstico: listar voces es-* disponibles para verificar si el device tiene voces masculinas instaladas.
+        // Diagnóstico: listar voces es-* disponibles.
         voices.filter { it.locale?.language == "es" }.forEach { v ->
             Timber.tag(LogTags.TTS).d(
                 "VOICE_AVAILABLE name=%s locale=%s quality=%s network=%s features=%s",
-                v.name,
-                v.locale,
-                v.quality,
-                v.isNetworkConnectionRequired,
-                v.features,
+                v.name, v.locale, v.quality, v.isNetworkConnectionRequired, v.features,
             )
         }
-        val best = VoiceSelector.selectBest(voices)
-        if (best == null) {
+
+        // Si el usuario eligió una voz manualmente (Settings de voz), respetá esa elección.
+        val savedName = context?.let { UserVoicePreferences.savedVoiceName(it) }
+        val userChosen = savedName?.let { name -> voices.firstOrNull { it.name == name } }
+
+        val chosen = userChosen ?: VoiceSelector.selectBest(voices)
+        if (chosen == null) {
             Timber.tag(LogTags.TTS).w("VOICE_SELECTED none — no Spanish voice found")
             return
         }
-        val res = engine.setVoice(best)
+        val res = engine.setVoice(chosen)
         if (res != TextToSpeech.SUCCESS) {
-            Timber.tag(LogTags.TTS).w("setVoice failed code=%d voice=%s", res, best.name)
+            Timber.tag(LogTags.TTS).w("setVoice failed code=%d voice=%s", res, chosen.name)
             return
         }
-        selectedVoiceName = best.name
-        selectedVoiceIsLikelyMale = VoiceSelector.isLikelyMale(best)
+        selectedVoiceName = chosen.name
+        selectedVoiceIsLikelyMale = VoiceSelector.isLikelyMale(chosen)
         Timber.tag(LogTags.TTS).i(
-            "VOICE_SELECTED name=%s locale=%s likelyMale=%s networkRequired=%s",
-            best.name,
-            best.locale,
-            selectedVoiceIsLikelyMale,
-            best.isNetworkConnectionRequired,
+            "VOICE_SELECTED name=%s locale=%s likelyMale=%s networkRequired=%s userOverride=%s",
+            chosen.name, chosen.locale, selectedVoiceIsLikelyMale, chosen.isNetworkConnectionRequired,
+            userChosen != null,
         )
-        if (!selectedVoiceIsLikelyMale) {
+        if (userChosen == null && !selectedVoiceIsLikelyMale) {
             Timber.tag(LogTags.TTS).w(
-                "VOICE_GENDER_FALLBACK selected=%s preferred=male — instalar voz masculina argentina pre-demo",
-                best.name,
+                "VOICE_GENDER_FALLBACK selected=%s preferred=male — el user puede elegir manual desde Settings",
+                chosen.name,
             )
         }
+    }
+
+    /**
+     * Lista todas las voces es disponibles (cualquier `es-*`). Usado por la pantalla de
+     * Settings de voz para que el user elija manualmente.
+     */
+    fun allSpanishVoices(): List<android.speech.tts.Voice> =
+        tts?.voices.orEmpty().filter { it.locale?.language == "es" }
+
+    /**
+     * Reproduce un texto corto con una voz específica (sin afectar la voz por default).
+     * Usado por el botón "Probar" del Settings.
+     */
+    fun previewVoice(voice: android.speech.tts.Voice, text: String) {
+        val engine = tts ?: return
+        val previousVoice = engine.voice
+        runCatching { engine.setVoice(voice) }
+        val id = "beto-preview-${utteranceCounter.incrementAndGet()}"
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+        // Restaurá la voz anterior después de un delay corto. No ideal pero pragmatic —
+        // el preview es corto.
+        scope.launch {
+            kotlinx.coroutines.delay(3500)
+            runCatching { engine.setVoice(previousVoice) }
+        }
+    }
+
+    /**
+     * Re-aplica la preferencia del usuario o vuelve al automático. Llamar después de
+     * cambiar la elección desde el Settings de voz.
+     */
+    fun applyUserPreferenceOrAuto(context: Context) {
+        applyBestVoice(context)
     }
 
     /** Snapshot de la voz seleccionada (para debug / pre-flight check). */

@@ -9,6 +9,29 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Visibilidad de paquetes para Quick Actions (Android 11+ scoped package visibility).
+             Sin estas entries, getLaunchIntentForPackage devuelve null y caemos al Play Store. -->
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.google.android.deskclock" />
+        <package android:name="com.android.deskclock" />
+        <package android:name="com.android.contacts" />
+        <package android:name="com.google.android.dialer" />
+        <package android:name="com.android.dialer" />
+        <package android:name="com.google.android.apps.maps" />
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.CALL" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
     </queries>
 
     <!-- Permisos críticos Phase 1+ (CONTEXT.md + Pitfall #11) -->
@@ -55,6 +78,12 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:theme="@style/Theme.Beto.Transparent" />
+
+        <!-- Settings de voz — accesible desde el onboarding -->
+        <activity
+            android:name=".onboarding.VoiceSettingsActivity"
+            android:exported="false"
+            android:label="@string/app_name" />
 
         <!-- BetoForegroundService (Plan 03 lo implementa) — Pitfall #11 -->
         <service

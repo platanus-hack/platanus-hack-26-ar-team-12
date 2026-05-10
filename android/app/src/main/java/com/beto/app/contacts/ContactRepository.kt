@@ -78,6 +78,22 @@ class ContactRepository(
         return dataSource.listContacts(limit).map { it.displayName }
     }
 
+    /**
+     * Igual que `resolve` pero con los contactos WhatsApp primero.
+     *
+     * El usuario reporta que prefiere "vincular con contactos de WhatsApp en vez de los
+     * contactos en general". Android no expone una libreta separada de WhatsApp, pero sí
+     * detecta cuáles de los contactos del sistema tienen perfil de WhatsApp (por mimetype).
+     * Cuando el comando es de WhatsApp, ordenamos las matches con `hasWhatsApp = true`
+     * arriba — el usuario sigue viendo todos los matches (el clarifier muestra varios si hay
+     * homónimos), pero el primero que aparece es el que tiene WhatsApp.
+     */
+    fun resolveWhatsAppFirst(name: String): List<ContactInfo> {
+        val all = resolve(name)
+        if (all.size <= 1) return all
+        return all.sortedByDescending { it.hasWhatsApp }
+    }
+
     private fun demoFallback(name: String): List<ContactInfo> =
         DemoContacts.resolve(name)?.let { listOf(it.toContactInfo()) }.orEmpty()
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,14 +54,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentEvent
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -70,12 +72,13 @@ private val INPUT_HEIGHT = 44.dp
 
 /**
  * Bottom sheet del chat unificado.
- *  - Dark theme forzado (CompanionActivity).
- *  - Quick actions: chips outline-only apilados verticalmente arriba-izquierda del input.
- *    Cada chip abre la app nativa correspondiente con su propio buscador.
+ *
+ *  - Cortina: ocupa ~85% del alto, deja ver la app target arriba (no full screen).
+ *  - Color gris oscuro sutil (BetoTheme dark) — no negro puro.
+ *  - Quick actions visibles SOLO cuando el input está vacío (gana espacio al chat al escribir).
  *  - Input bar fino, single-line inicial, auto-grow, placeholder "Chateá con Beto".
- *  - Botón mic circular del MISMO diametro que la altura del input.
- *  - Durante grabación: barras reactivas al RMS real del SpeechRecognizer + botón Stop.
+ *  - Mic circular cuando el campo está vacío; cambia a Send cuando hay texto.
+ *  - Durante grabación: barras finas reactivas al RMS + botón Stop.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +94,14 @@ fun CompanionSheet(
     val listState = rememberLazyListState()
     val ctx = LocalContext.current
 
+    // Hoisteamos el estado del input para que el sheet (quick actions) reaccione.
+    var inputText by rememberSaveable { mutableStateOf("") }
+    val hasText = inputText.isNotBlank()
+
+    // Cortina: deja ~15% de la pantalla visible arriba (la app target queda parcialmente visible).
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val sheetMaxHeight = (screenHeight.value * 0.85f).dp
+
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
@@ -99,11 +110,12 @@ fun CompanionSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
-        scrimColor = Color.Black.copy(alpha = 0.6f),
+        scrimColor = Color.Black.copy(alpha = 0.45f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(max = sheetMaxHeight)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             HeaderRow(onForget = viewModel::forgetSession, hasMessages = messages.isNotEmpty())
@@ -112,7 +124,7 @@ fun CompanionSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(360.dp),
+                    .heightIn(min = 200.dp, max = 420.dp),
             ) {
                 if (messages.isEmpty()) {
                     EmptyState()
@@ -129,16 +141,24 @@ fun CompanionSheet(
 
             ThinkingIndicator(isThinking)
 
-            // Quick actions: columna apilada arriba-izquierda del input.
-            QuickActionsColumn(
-                onActionTap = { it.launch(ctx) },
-                modifier = Modifier
-                    .padding(top = 8.dp, bottom = 6.dp)
-                    .widthIn(max = 200.dp),
-            )
+            // Quick actions: visibles SOLO si el input está vacío y no estamos grabando/pensando.
+            // Al escribir, dejan paso al input — el chat se siente más limpio.
+            if (!hasText && !isCapturing) {
+                QuickActionsColumn(
+                    onActionTap = { it.launch(ctx) },
+                    modifier = Modifier
+                        .padding(top = 8.dp, bottom = 6.dp)
+                        .widthIn(max = 200.dp),
+                )
+            }
 
             InputBar(
-                onSend = viewModel::sendUserText,
+                text = inputText,
+                onTextChange = { inputText = it },
+                onSend = { out ->
+                    viewModel.sendUserText(out)
+                    inputText = ""
+                },
                 onMicTap = viewModel::startVoiceInput,
                 onStopTap = viewModel::stopVoiceInput,
                 isCapturing = isCapturing,
@@ -178,7 +198,7 @@ private fun HeaderRow(onForget: () -> Unit, hasMessages: Boolean) {
 private fun EmptyState() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "Tocá el micrófono o escribí, dale.",
+            text = "Tocá el micrófono o escribí.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 16.sp,
         )
@@ -231,11 +251,14 @@ private fun MessageRow(message: CompanionMessage) {
 /**
  * Input bar:
  *  - Single-line inicial, crece con el contenido (max 5 líneas).
- *  - Mic circular a la derecha, mismo diametro que la altura del campo.
- *  - Mientras isCapturing → reemplaza el campo por barras reactivas al RMS + botón Stop.
+ *  - Mic circular a la derecha cuando el campo está vacío.
+ *  - Cuando hay texto, el botón se vuelve "Send" (➤) y el envío queda al frente.
+ *  - Mientras `isCapturing == true` reemplazamos el campo por el visualizer reactivo.
  */
 @Composable
 private fun InputBar(
+    text: String,
+    onTextChange: (String) -> Unit,
     onSend: (String) -> Unit,
     onMicTap: () -> Unit,
     onStopTap: () -> Unit,
@@ -246,7 +269,6 @@ private fun InputBar(
         VoiceCaptureRow(onStopTap = onStopTap)
         return
     }
-    var text by rememberSaveable { mutableStateOf("") }
     val hasText = text.isNotBlank()
 
     Row(
@@ -256,7 +278,7 @@ private fun InputBar(
     ) {
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it },
+            onValueChange = onTextChange,
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = INPUT_HEIGHT),
@@ -280,9 +302,7 @@ private fun InputBar(
             keyboardActions = KeyboardActions(
                 onSend = {
                     val out = text.trim()
-                    if (out.isNotEmpty()) {
-                        onSend(out); text = ""
-                    }
+                    if (out.isNotEmpty()) onSend(out)
                 },
             ),
             colors = TextFieldDefaults.colors(
@@ -294,7 +314,7 @@ private fun InputBar(
             ),
         )
 
-        // Botón circular: diametro = INPUT_HEIGHT (la "altura" del input mínimo).
+        // Botón circular: send (cuando hay texto) o mic (cuando está vacío).
         Box(
             modifier = Modifier
                 .size(INPUT_HEIGHT)
@@ -310,8 +330,7 @@ private fun InputBar(
                 )
                 .clickable(enabled = !isBusy) {
                     if (hasText) {
-                        val out = text.trim()
-                        onSend(out); text = ""
+                        onSend(text.trim())
                     } else {
                         onMicTap()
                     }
@@ -379,7 +398,7 @@ private fun MicGlyph(color: Color) {
 
 /**
  * Fila visible mientras `isCapturing == true`:
- *  - Barras animadas que reaccionan al RMS real del SpeechRecognizer (vía bus event).
+ *  - Barras animadas FINAS que reaccionan al RMS real del SpeechRecognizer (vía bus event).
  *  - Botón circular Stop al lado derecho (mismo diametro que el mic).
  */
 @Composable
@@ -405,7 +424,7 @@ private fun VoiceCaptureRow(onStopTap: () -> Unit) {
         Box(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxSize()
+                .fillMaxHeight()
                 .clip(RoundedCornerShape(22.dp))
                 .background(MaterialTheme.colorScheme.surface)
                 .border(
@@ -444,7 +463,10 @@ private fun VoiceCaptureRow(onStopTap: () -> Unit) {
 }
 
 /**
- * Visualizer reactivo: barras verticales cuya altura sigue el RMS.
+ * Visualizer reactivo: barras verticales **finas** y **fijas** cuya altura sigue el RMS.
+ * Las barras NO crecen lateralmente — el strokeWidth está fijado en dp y no depende del
+ * tamaño del canvas. Solo cambia la altura con la amplitud y un sine offset por barra.
+ *
  * `amplitude` viene en 0..1; cada barra tiene un offset de fase para animarse aún cuando el
  * RMS es bajo (idle).
  */
@@ -462,30 +484,34 @@ private fun ReactiveBars(amplitude: Float) {
         label = "phase",
     )
 
+    val density = LocalDensity.current
+    val barStrokePx = with(density) { 2.5.dp.toPx() }
+    val gapPx = with(density) { 1.5.dp.toPx() }
+
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val barCount = 11
-        val totalWidth = size.width
-        val gap = 3f
-        val barWidth = (totalWidth - gap * (barCount - 1)) / barCount
+        // Fijos: width y gap por barra. Calculamos cuántas barras entran centradas.
+        val available = size.width
+        val perBar = barStrokePx + gapPx
+        val barCount = max(8, (available / perBar).toInt())
+        val totalUsed = barCount * barStrokePx + (barCount - 1) * gapPx
+        val startX = (available - totalUsed) / 2f + barStrokePx / 2f
+
         val centerY = size.height / 2f
-        val maxAmp = size.height * 0.40f
-        // Si el usuario está en silencio, mantenemos un "idle" suave para indicar "estamos
-        // escuchando". Cuando hay voz (amp alto), las barras saltan.
-        val idleAmp = 0.18f
+        val maxAmp = size.height * 0.42f
+        val idleAmp = 0.16f
         val targetAmp = max(idleAmp, amplitude)
 
         for (i in 0 until barCount) {
-            val phaseOffset = i * 0.55f
+            val phaseOffset = i * 0.45f
             val sineFactor = (sin(phase + phaseOffset) + 1f) / 2f  // 0..1
-            // Mezcla idle sine + RMS amplitude para movimiento orgánico.
             val ratio = idleAmp + (targetAmp - idleAmp) * (0.4f + 0.6f * sineFactor)
             val height = maxAmp * min(1f, ratio)
-            val x = i * (barWidth + gap) + barWidth / 2f
+            val x = startX + i * (barStrokePx + gapPx)
             drawLine(
                 color = barColor,
                 start = Offset(x, centerY - height),
                 end = Offset(x, centerY + height),
-                strokeWidth = barWidth,
+                strokeWidth = barStrokePx,           // FIJO — no escala con el ancho
                 cap = StrokeCap.Round,
             )
         }

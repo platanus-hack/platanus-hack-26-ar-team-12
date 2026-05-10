@@ -22,6 +22,7 @@ import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
 import com.beto.app.companion.CompanionActivity
+import com.beto.app.companion.CompanionLlmClient
 import com.beto.app.contacts.ContactRepository
 import com.beto.app.guide.GuideController
 import com.beto.app.llm.ClaudeLlmClient
@@ -88,6 +89,7 @@ class BetoForegroundService : LifecycleService() {
             speaker = speaker,
             phraseGenerator = BetoApplication.phraseGenerator,
             guideController = guideController,
+            companionChat = CompanionLlmClient(),
             scope = lifecycleScope,
         )
 
@@ -167,11 +169,14 @@ class BetoForegroundService : LifecycleService() {
                             // re-emite como ChatMessageSent (con un mensaje USER en la UI).
                             return@collect
                         }
-                        actionDispatcher.handle(event.text)
+                        actionDispatcher.handle(event.text, chatMode = false)
                     }
                     is AgentEvent.ChatMessageSent -> {
+                        // chatMode=true → si el LLM no detecta tool/clarification, el dispatcher
+                        // cae al CompanionLlmClient para responder conversacionalmente con
+                        // contexto del chat (en lugar de decir "no te entendí").
                         Timber.tag(LogTags.ACTION).d("CHAT_MESSAGE_DISPATCH text=%s", event.text)
-                        actionDispatcher.handle(event.text)
+                        actionDispatcher.handle(event.text, chatMode = true)
                     }
                     is AgentEvent.VoiceCaptureFailed -> {
                         TtsManager.speak("No te escuché bien. Probemos de nuevo, dale.")

@@ -41,7 +41,10 @@ private val BetoColorsLight = lightColorScheme(
     outline = Color(0xFF424242),
 )
 
-// Dark palette para el chat unificado (CompanionActivity) — fondo negro con detalles claros.
+// Dark palette del chat unificado — gris oscuro sutil (NO negro puro).
+// El user pidió: "todo negro es feo, gris oscuro para que sea sutil". Subimos el background
+// al rango ~12-15% luminancia (carbón cálido) y la surface un escalón más clara para que
+// los inputs y bubbles destaquen del fondo sin contrastar agresivamente.
 private val BetoColorsDark = darkColorScheme(
     primary = Color(0xFF90CAF9),
     onPrimary = Color(0xFF0D2A4E),
@@ -51,16 +54,16 @@ private val BetoColorsDark = darkColorScheme(
     onSecondary = Color(0xFF1B5E20),
     secondaryContainer = Color(0xFF2A2A2A),
     onSecondaryContainer = Color(0xFFE0E0E0),
-    background = Color(0xFF000000),
-    onBackground = Color(0xFFE0E0E0),
-    surface = Color(0xFF0E0E0E),
-    onSurface = Color(0xFFE0E0E0),
-    surfaceVariant = Color(0xFF1A1A1A),
-    onSurfaceVariant = Color(0xFFBDBDBD),
+    background = Color(0xFF1F2024),                 // gris oscuro sutil (no #000)
+    onBackground = Color(0xFFE6E6E6),
+    surface = Color(0xFF26282E),                    // un escalón más claro para input/cards
+    onSurface = Color(0xFFE6E6E6),
+    surfaceVariant = Color(0xFF2D2F36),
+    onSurfaceVariant = Color(0xFFB8BAC0),
     error = Color(0xFFEF9A9A),
     onError = Color(0xFF601410),
-    outline = Color(0xFF555555),
-    outlineVariant = Color(0xFF2A2A2A),
+    outline = Color(0xFF4A4D55),
+    outlineVariant = Color(0xFF3A3D44),
 )
 
 val BetoTypography: Typography = Typography(

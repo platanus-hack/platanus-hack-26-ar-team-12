@@ -1,6 +1,8 @@
 package com.beto.app.action
 
 import android.content.Context
+import com.beto.app.companion.ChatHistoryHolder
+import com.beto.app.companion.CompanionChatClient
 import com.beto.app.contacts.ContactRepository
 import com.beto.app.guide.GuideAction
 import com.beto.app.guide.GuideController
@@ -29,6 +31,7 @@ class ActionDispatcher(
     private val speaker: Speaker,
     private val phraseGenerator: PhraseGenerator? = null,
     private val guideController: GuideController? = null,
+    private val companionChat: CompanionChatClient? = null,
     private val sendWhatsapp: (Context, DemoContact, String) -> ActionResult = IntentBranch::sendWhatsapp,
     private val scope: CoroutineScope? = null,
 ) {
@@ -39,19 +42,28 @@ class ActionDispatcher(
      */
     private suspend fun phrase(intent: PhraseIntent, params: PhraseParams = PhraseParams.empty()): String =
         phraseGenerator?.forIntent(intent, params) ?: PhraseFallbacks.forIntent(intent, params)
-    suspend fun handle(transcript: String) {
-        Timber.tag(LogTags.ACTION).d("DISPATCH_START")
+
+    /**
+     * Punto de entrada del motor de acciones.
+     *
+     * @param transcript texto del usuario (voz o chat).
+     * @param chatMode si viene del chat conversacional. En este modo, cuando el LLM no detecta
+     *   ningún tool ni clarification, en lugar de decir "no te entendí" se invoca al
+     *   `companionChat` para responder conversacionalmente con contexto de la sesión.
+     */
+    suspend fun handle(transcript: String, chatMode: Boolean = false) {
+        Timber.tag(LogTags.ACTION).d("DISPATCH_START chatMode=%s", chatMode)
         when (val routed = ActionRouter.routeTranscript(transcript)) {
             is RouteOutcome.PlanC -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_PLANC_HIT")
                 executePlanC(routed.match)
             }
-            is RouteOutcome.NeedsLlm -> executeLlmRoute(routed.transcript)
+            is RouteOutcome.NeedsLlm -> executeLlmRoute(routed.transcript, chatMode)
             else -> Unit
         }
     }
 
-    private suspend fun executeLlmRoute(transcript: String) {
+    private suspend fun executeLlmRoute(transcript: String, chatMode: Boolean) {
         val decision = runCatching { llm.interpret(transcript) }
             .getOrElse {
                 Timber.tag(LogTags.ACTION).w(it, "DISPATCH_FAILED reason=llm_error")
@@ -63,9 +75,36 @@ class ActionDispatcher(
                 executeTool(routed.call, transcript)
             }
             is RouteOutcome.Clarify -> handleClarification(routed.decision, transcript)
-            RouteOutcome.Unknown -> failDidNotUnderstand()
+            RouteOutcome.Unknown -> {
+                if (chatMode && companionChat != null) {
+                    chatRespond(transcript)
+                } else {
+                    failDidNotUnderstand()
+                }
+            }
             else -> Unit
         }
+    }
+
+    /**
+     * Cuando el user chatea (no comanda) y el LLM no detecta tool, respondemos con la
+     * persona conversacional. Usamos el snapshot de history del `ChatHistoryHolder` para
+     * que el LLM tenga contexto de la sesión.
+     */
+    private suspend fun chatRespond(transcript: String) {
+        val client = companionChat ?: run {
+            failDidNotUnderstand()
+            return
+        }
+        Timber.tag(LogTags.ACTION).d("DISPATCH_CHAT_FALLBACK transcript=%s", transcript.take(50))
+        val history = ChatHistoryHolder.current()
+        val reply = runCatching { client.chat(history) }
+            .getOrElse {
+                Timber.tag(LogTags.ACTION).w(it, "CHAT_FALLBACK_FAILED")
+                ""
+            }
+            .ifBlank { "Estoy acá. Contame un poco más." }
+        speaker.speak(reply)
     }
 
     private suspend fun executePlanC(match: MatchResult.Matched) {
@@ -92,7 +131,10 @@ class ActionDispatcher(
                 executeChannel(contact, Channel.CALL, null)
             }
             ToolDescriptors.SEND_SMS, ToolDescriptors.SEND_WHATSAPP -> {
-                val contact = resolveContactOrClarify(call.args["contact"].orEmpty()) ?: return
+                val contact = resolveContactOrClarify(
+                    call.args["contact"].orEmpty(),
+                    preferWhatsApp = call.tool == ToolDescriptors.SEND_WHATSAPP,
+                ) ?: return
                 val message = call.args["message"].orEmpty()
                 if (message.isBlank()) {
                     failDidNotUnderstand()
@@ -132,7 +174,10 @@ class ActionDispatcher(
         }
     }
 
-    private suspend fun resolveContactOrClarify(contactArg: String): ContactRef? {
+    private suspend fun resolveContactOrClarify(
+        contactArg: String,
+        preferWhatsApp: Boolean = false,
+    ): ContactRef? {
         val normalized = contactArg.trim()
         if (normalized.isBlank()) {
             Timber.tag(LogTags.ACTION).w("CONTACT_RESOLVE empty arg")
@@ -144,8 +189,15 @@ class ActionDispatcher(
             Timber.tag(LogTags.ACTION).d("CONTACT_RESOLVE alias_hit arg=%s -> %s", normalized, it.displayName)
             return it
         }
-        val matches = contacts.resolve(normalized)
-        Timber.tag(LogTags.ACTION).d("CONTACT_RESOLVE arg=%s matches=%d", normalized, matches.size)
+        val matches = if (preferWhatsApp) {
+            contacts.resolveWhatsAppFirst(normalized)
+        } else {
+            contacts.resolve(normalized)
+        }
+        Timber.tag(LogTags.ACTION).d(
+            "CONTACT_RESOLVE arg=%s matches=%d preferWhatsApp=%s",
+            normalized, matches.size, preferWhatsApp,
+        )
         return when (matches.size) {
             1 -> matches.single().toContactRef()
             0 -> contactClarifier.clarify(normalized)

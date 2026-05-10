@@ -35,6 +35,9 @@ class CompanionViewModel : ViewModel() {
     val isCapturingVoice: StateFlow<Boolean> = _isCapturingVoice.asStateFlow()
 
     init {
+        // Snapshot inicial del historial al holder global (vacío al boot).
+        ChatHistoryHolder.update(emptyList())
+
         // Escuchamos las respuestas del agente unificado para mostrarlas en el chat.
         viewModelScope.launch {
             AgentBus.events
@@ -94,11 +97,15 @@ class CompanionViewModel : ViewModel() {
 
     fun forgetSession() {
         _messages.value = emptyList()
+        ChatHistoryHolder.clear()
         Timber.tag(LogTags.MEMORY).d("COMPANION_SESSION_CLEARED")
     }
 
     private fun appendMessage(msg: CompanionMessage) {
-        _messages.value = (_messages.value + msg).takeLast(MAX_HISTORY)
+        val updated = (_messages.value + msg).takeLast(MAX_HISTORY)
+        _messages.value = updated
+        // Mirror al holder global para que el ActionDispatcher tenga contexto al chatear.
+        ChatHistoryHolder.update(updated)
     }
 
     companion object {

@@ -73,21 +73,31 @@ internal object QuickActionDefs {
     }
 
     private fun launchWhatsApp(context: Context) {
-        // Lanzá la app de WhatsApp directamente — el usuario usa su propio buscador.
+        // Estrategia 1: launchIntent del paquete (requiere queries en manifest para Android 11+).
         val pm = context.packageManager
-        val intent = pm.getLaunchIntentForPackage("com.whatsapp")
-            ?: pm.getLaunchIntentForPackage("com.whatsapp.w4b")  // WhatsApp Business
-        if (intent != null) {
-            tryStart(context, intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), "whatsapp")
-        } else {
-            Timber.tag(LogTags.ACTION).w("WhatsApp no instalado — abriendo Play Store")
-            tryStart(
-                context,
-                Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.whatsapp"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                "whatsapp_install",
-            )
+        val candidatePackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+        for (pkg in candidatePackages) {
+            val intent = pm.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                tryStart(context, intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), "whatsapp")
+                return
+            }
         }
+        // Estrategia 2: deeplink wa.me (abre WhatsApp si está instalado, va al chat de inicio).
+        val deeplink = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (deeplink.resolveActivity(pm) != null) {
+            tryStart(context, deeplink, "whatsapp_deeplink")
+            return
+        }
+        // Estrategia 3: si nada funciona, Play Store. Loguea para diagnostic.
+        Timber.tag(LogTags.ACTION).w("WhatsApp launch — todos los caminos fallaron, abriendo Play Store")
+        tryStart(
+            context,
+            Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.whatsapp"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            "whatsapp_install",
+        )
     }
 
     private fun launchSms(context: Context) {
@@ -100,9 +110,30 @@ internal object QuickActionDefs {
     }
 
     private fun launchAlarmClock(context: Context) {
-        // ACTION_SHOW_ALARMS abre la pantalla de alarmas del clock app.
-        val intent = Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        tryStart(context, intent, "clock_alarms")
+        // Estrategia 1: ACTION_SHOW_ALARMS (estándar AOSP).
+        val showAlarms = Intent(AlarmClock.ACTION_SHOW_ALARMS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (showAlarms.resolveActivity(context.packageManager) != null) {
+            tryStart(context, showAlarms, "clock_alarms")
+            return
+        }
+        // Estrategia 2: launchIntent de la clock app del fabricante.
+        val pm = context.packageManager
+        val candidates = listOf(
+            "com.google.android.deskclock",
+            "com.android.deskclock",
+            "com.sec.android.app.clockpackage",     // Samsung
+            "com.oneplus.deskclock",                  // OnePlus
+            "com.miui.deskclock",                     // Xiaomi
+        )
+        for (pkg in candidates) {
+            val intent = pm.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                tryStart(context, intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), "clock_$pkg")
+                return
+            }
+        }
+        Timber.tag(LogTags.ACTION).w("Alarma — no se encontró ninguna app de reloj instalada")
     }
 
     private fun tryStart(context: Context, intent: Intent, label: String) {

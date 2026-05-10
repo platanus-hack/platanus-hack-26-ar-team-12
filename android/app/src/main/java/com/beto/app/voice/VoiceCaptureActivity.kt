@@ -34,6 +34,13 @@ class VoiceCaptureActivity : Activity() {
     private var preferOnDeviceRecognizer = false
     private var speechStarted = false
     private var recognizer: SpeechRecognizer? = null
+
+    // Idempotencia del finalizado: si el user pidió Stop, ignoramos cualquier resultado
+    // posterior del recognizer (que puede llegar después de stopListening/cancel).
+    @Volatile
+    private var userCancelled = false
+    @Volatile
+    private var alreadyFinalized = false
     private val sttCorrector by lazy { SttCorrector(ClaudeLlmClient()) }
     private val contacts by lazy { ContactRepository(this) }
 
@@ -42,12 +49,17 @@ class VoiceCaptureActivity : Activity() {
         startedAtMs = intent.getLongExtra(EXTRA_STARTED_AT_MS, SystemClock.elapsedRealtime())
 
         // Listener para que el chat (botón Stop) pueda cancelar la captura.
+        // Usamos cancel() (no stopListening) — más agresivo, descarta el audio en buffer y NO
+        // dispara onResults posterior. El flag userCancelled hace idempotente el finalizado:
+        // si el recognizer todavía tira un onResults o onError después, lo ignoramos.
         scope.launch {
             AgentBus.commands
                 .filterIsInstance<com.beto.app.bus.AgentCommand.StopVoiceCapture>()
                 .collect {
-                    Timber.tag(LogTags.STT).i("StopVoiceCapture received -> finishing")
-                    runCatching { recognizer?.stopListening() }
+                    Timber.tag(LogTags.STT).i("StopVoiceCapture received -> cancelling recognizer")
+                    userCancelled = true
+                    runCatching { recognizer?.cancel() }
+                        .onFailure { Timber.tag(LogTags.STT).w(it, "recognizer.cancel() falló") }
                     emitFailure("user_cancelled")
                 }
         }
@@ -92,12 +104,17 @@ class VoiceCaptureActivity : Activity() {
     }
 
     private fun handleRecognitionResult(transcript: String?, confidence: Float?) {
+        if (userCancelled || alreadyFinalized) {
+            Timber.tag(LogTags.STT).d("Ignoring late result — userCancelled=%s finalized=%s", userCancelled, alreadyFinalized)
+            return
+        }
         val elapsedMs = SystemClock.elapsedRealtime() - startedAtMs
         if (transcript.isNullOrBlank()) {
             emitFailure("empty_or_cancelled", elapsedMs)
             return
         }
 
+        alreadyFinalized = true
         Timber.tag(LogTags.STT).i(
             "PLAN_C_STT_RESULT elapsedMs=%d confidence=%s",
             elapsedMs,
@@ -135,6 +152,11 @@ class VoiceCaptureActivity : Activity() {
     }
 
     private fun emitFailure(reason: String, elapsedMs: Long = SystemClock.elapsedRealtime() - startedAtMs) {
+        if (alreadyFinalized) {
+            Timber.tag(LogTags.STT).d("Ignoring late failure — already finalized reason=%s", reason)
+            return
+        }
+        alreadyFinalized = true
         Timber.tag(LogTags.STT).w("PLAN_C_STT_RESULT elapsedMs=%d failed=%s", elapsedMs, reason)
         scope.launch {
             AgentBus.emit(AgentEvent.VoiceCaptureFailed(reason, elapsedMs))
