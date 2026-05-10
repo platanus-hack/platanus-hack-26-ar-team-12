@@ -3,7 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.google.services)
 }
 
 android {
@@ -16,6 +15,15 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+
+        val localProps = java.util.Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        val anthropicKey = localProps.getProperty("anthropic.api.key")
+            ?: System.getenv("ANTHROPIC_API_KEY")
+            ?: ""
+        buildConfigField("String", "ANTHROPIC_API_KEY", "\"$anthropicKey\"")
     }
 
     buildTypes {
@@ -45,9 +53,9 @@ android {
 }
 
 dependencies {
-    // Firebase + Gemini
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.ai)
+    // Anthropic Claude SDK (LLM principal — reemplaza Firebase AI Logic / Gemini)
+    implementation(libs.anthropic.java)
+    implementation(libs.anthropic.java.client.okhttp)
 
     // Kotlin core
     implementation(libs.kotlinx.coroutines.android)
