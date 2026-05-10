@@ -18,7 +18,7 @@ Beto se construye en 7 fases que entregan capacidades end-to-end de usuario, no 
 - [x] **Phase 2: Vertical Slice Mínimo (Plan C Offline)** — Tap → STT → matcher determinista → Intent WhatsApp → TTS, sin LLM
 - [x] **Phase 3: Cerebro IA + Memoria + Multi-canal con aprendizaje** — Gemini client + sanitizer + STT corrector + acceso a contactos del sistema + memoria persistida + router multi-canal que aprende
 - [x] **Phase 4: Voz humana + UX senior + Compañero + Guía con gestos** — TTS neural + respuestas generadas por LLM + 5 estados burbuja + tipografía senior + chat Compañero + flecha visual sobre target
-- [ ] **Phase 5: Anti-fraude reactivo** — Tool de análisis de estafa + UX para invocarlo por voz
+- [ ] **Phase 5: Escudo Antiestafas (proactivo + reactivo)** — AccessibilityService → ScamRiskEngine local → Overlay → Acción. LLM solo explica.
 - [ ] **Phase 6: Activación rápida (opcional)** — Botón físico (vol-down 2s) y/o wake word
 - [ ] **Phase 7: Demo Readiness** — Freeze APK, hot-spare, hotspot, checklist físico, ensayos, video respaldo, submission
 
@@ -76,19 +76,26 @@ Beto se construye en 7 fases que entregan capacidades end-to-end de usuario, no 
 **UI hint**: yes
 **Wave plan**: Wave 1 paraleliza 04-01 + 04-02 (independientes). Wave 2: 04-03 + 04-04 consumen primitivas de wave 1 (también paralelizables entre sí).
 
-### Phase 5: Anti-fraude reactivo
-**Status:** Planned (2 plans escritos)
-**Goal**: El usuario le pasa un texto/screenshot a Beto y le pregunta "¿esto es estafa?". Beto invoca un tool especializado, Gemini analiza con prompt anti-fraude argentino y devuelve veredicto cálido sin alarmismo: confirma riesgo, explica simple por qué, y sugiere qué hacer.
+### Phase 5: Escudo Antiestafas (proactivo + reactivo)
+**Status:** In progress (re-planificada 2026-05-10 para alinear al pitch final)
+**Goal**: Beto detecta estafas **antes del clic**. AccessibilityService lee pasivamente el chat, ScamRiskEngine local cruza ≥3 señales offline y decide riesgo, overlay frena al usuario con 3 botones grandes (llamar a confianza · cancelar · entendido), TTS habla cálido. El LLM solo enriquece la frase, nunca decide. Path reactivo (`"¿esto es estafa?"`) reusa el mismo engine.
 **Mode:** mvp
-**Depends on**: Phase 3
-**Requirements**: FRAUD-01, FRAUD-02
+**Depends on**: Phase 3, Phase 4
+**Requirements**: FRAUD-01, FRAUD-02 (extendidos por la nueva arquitectura)
 **Success Criteria** (what must be TRUE):
-  1. Diciendo "Beto, ¿esto es estafa?" sobre un mensaje conocido como fraude (ej. SMS de "AFIP" pidiendo CBU), Beto confirma el riesgo y explica con vocabulario simple en menos de 8 segundos.
-  2. Sobre un mensaje legítimo (ej. confirmación real de turno médico), Beto descarta el riesgo y explica por qué se ve confiable.
-  3. La invocación es 100% reactiva — Beto nunca alerta proactivamente sin pedido del usuario.
-**Plans**: 2 plans escritos
-  - [ ] 05-01-PLAN.md — Tool `analyze_for_fraud` + prompt curado anti-fraude argentino con 6 few-shots reales (FRAUD-01)
-  - [ ] 05-02-PLAN.md — UX de invocación: voz natural + share-target + análisis de último SMS (FRAUD-02)
+  1. Sobre el caso del pitch (chat WhatsApp con *"cambié de número + 80 mil + urgente + no le digas"*), `ScamRiskEngine` retorna `HIGH` con ≥3 signals — verificable por unit test sin Android.
+  2. Cuando llega ese mensaje a WhatsApp en el teléfono de demo, el overlay aparece encima del chat en menos de 2s con badge rojo, chips de signals y 3 botones grandes.
+  3. Tocar "Llamar a mi nieto" lanza un intent `ACTION_CALL/DIAL` al contacto de confianza configurado.
+  4. El motor decide **sin red**: con avión activo, el overlay y los botones siguen funcionando; solo la frase warm cae al canned por signal-combo.
+  5. Sobre un mensaje legítimo (ej. confirmación de turno médico, mensaje real de un contacto guardado), no aparece overlay (cero falsos positivos en suite de control).
+  6. Path reactivo (`"Beto, ¿esto es estafa?"`) sigue funcionando: pasa por el mismo engine y, si HIGH/MEDIUM, el LLM Explainer redacta la respuesta hablada.
+**Plans**: 6 blocks iterativos (re-numerados)
+  - [ ] 05-01-PLAN.md — **ScamRiskEngine core** (pure Kotlin): Signal enum, SignalDetector, engine, tests JUnit con demo case del pitch
+  - [ ] 05-02-PLAN.md — Trusted contact (paralelo a 05-01): setting + persistencia + repo
+  - [ ] 05-03-PLAN.md — Accessibility pipeline: filter packages, BFS extract, throttle, dedupe hash → engine
+  - [ ] 05-04-PLAN.md — Scam Alert Overlay: bottom-sheet sobre chat (badge + chips + 3 botones)
+  - [ ] 05-05-PLAN.md — LLM Explainer (Haiku) con timeout 1.5s + canned phrases por combo de signals
+  - [ ] 05-06-PLAN.md — AlertOrchestrator: cooldown, dedupe, BubbleState.WARNING, TTS-overlay sync, fix mic-during-TTS, path reactivo
 
 ### Phase 6: Activación rápida (opcional)
 **Status:** Planned (2 plans escritos), opcional según tiempo
@@ -129,7 +136,7 @@ Phases ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5 → 6 → 7. Phase
 | 2. Vertical Slice Mínimo (Plan C Offline) | 3/3 | ✓ Done | 2026-05-09 |
 | 3. Cerebro IA + Memoria + Multi-canal | 5/5 | ✓ Done | 2026-05-09 |
 | 4. Voz humana + UX + Compañero + Guía con gestos | 4/4 | ✓ Done | 2026-05-10 |
-| 5. Anti-fraude reactivo | 0/2 | Plans escritos | — |
+| 5. Escudo Antiestafas (proactivo + reactivo) | 0/6 | In progress (re-planificada 2026-05-10) | — |
 | 6. Activación rápida (opcional) | 0/2 | Plans escritos | — |
 | 7. Demo Readiness | 0/1 | Plans escritos | — |
 
