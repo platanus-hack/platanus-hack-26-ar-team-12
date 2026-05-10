@@ -72,5 +72,6 @@ sealed class AgentCommand {
     data class Speak(val text: String) : AgentCommand()
     data class StartVoiceCapture(val startedAtMs: Long? = null) : AgentCommand()
 
-    // TODO Phase 2-4: ExecuteToolCall, RunAgenticLoop, OpenCompanion, etc.
+    /** Long-press en la burbuja → abre el Modo Compañero (Phase 4-03). */
+    object OpenCompanion : AgentCommand()
 }

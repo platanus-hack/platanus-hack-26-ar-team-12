@@ -48,6 +48,14 @@
             android:exported="false"
             android:theme="@style/Theme.Beto.Transparent" />
 
+        <!-- Modo Compañero (Phase 4-03) — long-press en la burbuja → CompanionActivity -->
+        <activity
+            android:name=".companion.CompanionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Beto.Transparent" />
+
         <!-- BetoForegroundService (Plan 03 lo implementa) — Pitfall #11 -->
         <service
             android:name=".service.BetoForegroundService"

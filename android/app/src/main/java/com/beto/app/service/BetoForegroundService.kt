@@ -21,6 +21,7 @@ import com.beto.app.action.TtsSpeaker
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
+import com.beto.app.companion.CompanionActivity
 import com.beto.app.contacts.ContactRepository
 import com.beto.app.llm.GeminiLlmClient
 import com.beto.app.overlay.OverlayManager
@@ -89,6 +90,11 @@ class BetoForegroundService : LifecycleService() {
                     is AgentCommand.StartVoiceCapture -> {
                         startActivity(VoiceCaptureActivity.startIntent(this@BetoForegroundService, command.startedAtMs))
                     }
+                    AgentCommand.OpenCompanion -> {
+                        val intent = Intent(this@BetoForegroundService, CompanionActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    }
                 }
             }
         }
@@ -113,8 +119,8 @@ class BetoForegroundService : LifecycleService() {
                         TtsManager.speak("No te escuché bien. Probemos de nuevo, dale.")
                     }
                     is AgentEvent.BubbleLongPressed -> {
-                        Timber.tag(LogTags.TTS).i("Bubble long-pressed -> stopping Beto")
-                        stopSelf()
+                        Timber.tag(LogTags.TTS).i("Bubble long-pressed -> opening Companion")
+                        AgentBus.command(AgentCommand.OpenCompanion)
                     }
                     is AgentEvent.BubbleCloseRequested -> {
                         Timber.tag(LogTags.TTS).i("Bubble close requested -> stopping Beto")

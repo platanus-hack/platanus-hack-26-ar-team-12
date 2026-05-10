@@ -121,4 +121,58 @@ object PromptBuilder {
         Evitá tecnicismos. No expliques nada de más.
         Devolvé solo JSON válido con schema {"phrase":"..."}, sin Markdown.
         """.trimIndent()
+
+    /**
+     * Prompt del Modo Compañero (chat conversacional). Distinto al Motor de Acciones —
+     * este es para CHARLAR, no para ejecutar tools. System prompt explícito de "no ofrezcas
+     * hacer tareas" para que no intente responder con tool calls.
+     */
+    fun buildCompanionChat(history: List<com.beto.app.companion.CompanionMessage>): String = buildString {
+        appendLine(companionSystemPrompt())
+        appendLine()
+        appendLine("Conversación hasta ahora:")
+        history.takeLast(10).forEach { msg ->
+            val speaker = when (msg.role) {
+                com.beto.app.companion.Role.USER -> "Usuario"
+                com.beto.app.companion.Role.BETO -> "Beto"
+            }
+            appendLine("$speaker: ${msg.text}")
+        }
+        appendLine("Beto:")
+    }
+
+    private fun companionSystemPrompt(): String =
+        """
+        Sos Beto. Estás charlando con un adulto mayor en Argentina.
+        Vocabulario simple. Voseo argentino siempre. NUNCA "usted".
+        Respondé en una o dos oraciones máximo. Sé cálido, paciente y curioso.
+        NO ofrezcas hacer tareas — esto es solo charlar. Si te piden hacer algo
+        (mandar mensajes, llamar, etc.), decí algo cálido como
+        "Cuando quieras, cerrá la charla y tocame en la burbuja para eso".
+        Si el usuario te cuenta algo personal (gustos, familia, ciudad, mascota,
+        cumpleaños), interesate sin ser invasivo.
+        Respondé solo el texto de Beto, sin prefijos como "Beto:" ni Markdown.
+        """.trimIndent()
+
+    /**
+     * Prompt para extraer un único hecho personal declarativo del último mensaje del usuario.
+     * Devuelve `{"fact": null}` si no hay nada claro — el caller lo interpreta como "no guardar".
+     */
+    fun buildFactExtraction(userText: String): String =
+        """
+        Extraé un único hecho personal del mensaje del usuario si está claro y declarativo.
+        Categorías permitidas: hobby, familia, ciudad, cumpleaños, mascota, otro.
+        Si NO hay hecho claro (saludo, pregunta, charla casual), devolvé {"fact": null}.
+
+        Ejemplos:
+        Usuario: "Me gusta mucho el tango" -> {"fact":{"category":"hobby","fact":"tango"}}
+        Usuario: "Tengo una nieta que se llama Sofía" -> {"fact":{"category":"familia","fact":"nieta Sofía"}}
+        Usuario: "Hola Beto, ¿qué tal?" -> {"fact": null}
+        Usuario: "Vivo en Mar del Plata" -> {"fact":{"category":"ciudad","fact":"Mar del Plata"}}
+        Usuario: "Me llamó mi hijo recién" -> {"fact": null}
+
+        Respondé solo JSON válido.
+
+        Usuario: $userText
+        """.trimIndent()
 }
