@@ -14,7 +14,7 @@ package com.beto.app.llm
  *  - Allow-list de nombres = exactamente estos 5.
  */
 @Suppress("UnusedPrivateMember", "Unused")
-internal object ToolDescriptors {
+object ToolDescriptors {
 
     // TODO Phase 3 (LLM-02): registrar con FunctionDeclaration de Firebase AI SDK.
     // Estructura tentativa:
@@ -33,12 +33,42 @@ internal object ToolDescriptors {
     const val OPEN_MAPS = "open_maps"
     const val AGENTIC_PERFORM_ACTION = "agentic_perform_action"
 
+    val ALLOWED_TOOLS: Set<String> = setOf(
+        SEND_WHATSAPP,
+        MAKE_CALL,
+        SEND_SMS,
+        OPEN_MAPS,
+    )
+
     val ALL_TOOL_NAMES: Set<String> = setOf(
         SEND_WHATSAPP,
         MAKE_CALL,
         SEND_SMS,
         OPEN_MAPS,
         AGENTIC_PERFORM_ACTION,
+    )
+
+    val DESCRIPTORS: List<ToolDescriptor> = listOf(
+        ToolDescriptor(
+            name = SEND_WHATSAPP,
+            description = "Envía un mensaje de WhatsApp al contacto indicado.",
+            requiredArgs = listOf("contact", "message"),
+        ),
+        ToolDescriptor(
+            name = MAKE_CALL,
+            description = "Llama por teléfono al contacto indicado.",
+            requiredArgs = listOf("contact"),
+        ),
+        ToolDescriptor(
+            name = SEND_SMS,
+            description = "Envía un SMS al contacto indicado.",
+            requiredArgs = listOf("contact", "message"),
+        ),
+        ToolDescriptor(
+            name = OPEN_MAPS,
+            description = "Abre Google Maps con una búsqueda o destino.",
+            requiredArgs = listOf("query"),
+        ),
     )
 
     // TODO Phase 3: descripciones completas en español + ejemplos few-shot:
@@ -49,3 +79,9 @@ internal object ToolDescriptors {
     // agentic_perform_action(goal: String) — "Ejecuta una acción genérica leyendo la pantalla.
     //                                          Usar SOLO cuando ningún otro tool aplica."
 }
+
+data class ToolDescriptor(
+    val name: String,
+    val description: String,
+    val requiredArgs: List<String>,
+)
