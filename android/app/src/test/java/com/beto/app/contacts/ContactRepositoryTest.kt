@@ -34,6 +34,36 @@ class ContactRepositoryTest {
     }
 
     @Test
+    fun prefersFirstNameMatchesOverSubstringMatches() {
+        val repository = repository(
+            contacts = listOf(
+                contact(1, "Fran Iturain"),
+                contact(2, "Francisco Perez"),
+                contact(3, "Jose Fran"),
+            ),
+        )
+
+        val result = repository.resolve("Fran")
+
+        assertEquals(listOf("Fran Iturain"), result.map { it.displayName })
+    }
+
+    @Test
+    fun exactFullNameMatchWinsOverPartialMatches() {
+        val repository = repository(
+            contacts = listOf(
+                contact(1, "Fran Iturain"),
+                contact(2, "Fran Iturain Trabajo"),
+                contact(3, "Fran Garcia"),
+            ),
+        )
+
+        val result = repository.resolve("Fran Iturain")
+
+        assertEquals(listOf("Fran Iturain"), result.map { it.displayName })
+    }
+
+    @Test
     fun returnsEmptyListWhenNoMatch() {
         val repository = repository(contacts = emptyList())
 

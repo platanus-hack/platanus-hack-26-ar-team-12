@@ -155,8 +155,7 @@ class ActionDispatcher(
                     // Recovery: si el user dijo "llamá a X por WhatsApp", el LLM elige
                     // SEND_WHATSAPP por la palabra "WhatsApp" pero la INTENCIÓN era llamar.
                     // Detectamos verbo de llamada en el transcript y reinterpretamos.
-                    val lower = transcript.lowercase(Locale("es", "AR"))
-                    if ("llam" in lower || "telefon" in lower || "telefón" in lower) {
+                    if (ActionIntentHeuristics.requestsCall(transcript)) {
                         Timber.tag(LogTags.ACTION).d(
                             "DISPATCH_REINTERPRET tool=%s -> make_call (verb 'llamar' in transcript)",
                             call.tool,
@@ -360,8 +359,7 @@ class ActionDispatcher(
     }
 
     private suspend fun executeAfterContactClarification(transcript: String, contact: ContactRef) {
-        val normalized = transcript.lowercase(Locale("es", "AR"))
-        if ("llam" in normalized || "telefon" in normalized) {
+        if (ActionIntentHeuristics.requestsCall(transcript)) {
             executeChannel(contact, Channel.CALL, null)
             return
         }
@@ -414,5 +412,12 @@ class ActionDispatcher(
             "llamada" in normalized || "telefono" in normalized || "teléfono" in normalized -> Channel.CALL
             else -> null
         }
+    }
+}
+
+internal object ActionIntentHeuristics {
+    fun requestsCall(transcript: String): Boolean {
+        val lower = transcript.lowercase(Locale("es", "AR"))
+        return "llam" in lower || "telefon" in lower || "telefón" in lower
     }
 }
