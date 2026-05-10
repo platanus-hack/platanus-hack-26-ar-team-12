@@ -12,7 +12,18 @@ import timber.log.Timber
 
 /**
  * Holder único del cliente Anthropic. La SDK java es blocking — toda llamada
- * sale en Dispatchers.IO. Modelo fijo: claude-haiku-4-5 (sub-2s, vision + tools).
+ * sale en Dispatchers.IO.
+ *
+ * Estrategia de modelo (revisada 2026-05-10):
+ *  - **Haiku 4.5** por DEFAULT — sub-2s, ideal para `interpret()` que está en el path
+ *    crítico de un comando de voz. Sonnet 4.6 (~3-5s) hacía que el bubble pareciera
+ *    "no responder" y rompía la UX de demo.
+ *  - **Sonnet 4.6** opcional vía parámetro `model` — para usos asincrónicos con
+ *    fallback (ScamExplainer, donde el timeout es 1.5s y hay frase canned siempre).
+ *
+ * Para mejorar resolución de contactos con nombre+apellido (el bug "¿quién es tu Fran
+ * Iturain?") la solución NO es el modelo — es el prompt + la red defensiva en el
+ * dispatcher (ya implementada).
  */
 object AnthropicClientHolder {
     private val client: AnthropicClient by lazy {
@@ -21,15 +32,20 @@ object AnthropicClientHolder {
             .build()
     }
 
+    /** Modelo rápido por default — usado por todo lo que está en el path crítico. */
+    val DEFAULT_MODEL: Model = Model.CLAUDE_HAIKU_4_5
+
+    /** Modelo de mayor calidad para tareas asincrónicas tolerantes a latencia. */
+    val QUALITY_MODEL: Model = Model.CLAUDE_SONNET_4_6
+
     suspend fun complete(
         prompt: String,
         system: String? = null,
         maxTokens: Long = 512,
+        model: Model = DEFAULT_MODEL,
     ): String = withContext(Dispatchers.IO) {
-        // Nota: Haiku 4.5 ignora temperature (rechaza valores != 1.0 con 400).
-        // Variabilidad por design: el caller varía via system/prompt, no temperature.
         val builder = MessageCreateParams.builder()
-            .model(Model.CLAUDE_HAIKU_4_5)
+            .model(model)
             .maxTokens(maxTokens)
             .addUserMessage(prompt)
         if (!system.isNullOrBlank()) builder.system(system)

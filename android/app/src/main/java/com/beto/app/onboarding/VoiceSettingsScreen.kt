@@ -1,5 +1,7 @@
 package com.beto.app.onboarding
 
+import android.content.Intent
+import android.provider.Settings
 import android.speech.tts.Voice
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,15 +61,31 @@ fun VoiceSettingsScreen(onClose: () -> Unit) {
     var currentSelectionName by remember { mutableStateOf<String?>(UserVoicePreferences.savedVoiceName(context)) }
     var refreshTick by remember { mutableStateOf(0) }
 
-    LaunchedEffect(refreshTick) {
-        voices = TtsManager.allSpanishVoices()
-            .sortedWith(
-                compareByDescending<Voice> { VoiceSelector.scoreGender(it.name) }
-                    .thenByDescending {
-                        VoiceSelector.isNeural(it.name, it.features.orEmpty())
-                    }
-                    .thenBy { it.name },
-            )
+    var diagnostic by remember { mutableStateOf("") }
+    var showAllLanguages by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshTick, showAllLanguages) {
+        // El TTS engine completa init de forma ASÍNCRONA (~200-1000ms tras boot). Si abrimos
+        // esta pantalla antes de que esté listo, `allSpanishVoices()` devuelve []. Polling
+        // hasta isReady o 10s — algunas ROMs tardan más en exponer voces post-instalación.
+        var elapsed = 0L
+        while (!TtsManager.isReady && elapsed < 10_000) {
+            kotlinx.coroutines.delay(200)
+            elapsed += 200
+        }
+        // Tras isReady, esperamos un beat extra para que .voices se popule (algunos engines
+        // las cargan en background incluso después de onInit SUCCESS).
+        kotlinx.coroutines.delay(300)
+
+        val raw = if (showAllLanguages) TtsManager.allVoicesAnyLanguage() else TtsManager.allSpanishVoices()
+        voices = raw.sortedWith(
+            compareByDescending<Voice> { VoiceSelector.scoreGender(it.name) }
+                .thenByDescending {
+                    VoiceSelector.isNeural(it.name, it.features.orEmpty())
+                }
+                .thenBy { it.name },
+        )
+        diagnostic = TtsManager.voicesDiagnostic()
     }
 
     Column(
@@ -109,22 +127,86 @@ fun VoiceSettingsScreen(onClose: () -> Unit) {
         }
 
         if (voices.isEmpty()) {
+            val ttsReady = TtsManager.isReady
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "No encontré voces en español.",
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "Instalá una desde Ajustes → Idioma → Voz.",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                ) {
+                    if (!ttsReady) {
+                        Text(
+                            text = "Cargando voces…",
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Text(
+                            text = if (showAllLanguages) "No encontré ninguna voz en este teléfono."
+                            else "No encontré voces en español.",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = if (showAllLanguages) {
+                                "Tu teléfono no expone voces TTS. Probá instalar el motor de Google."
+                            } else {
+                                "Probá ver todas las voces disponibles, o instalar una de español."
+                            },
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(20.dp))
+
+                        Button(
+                            onClick = { refreshTick++ },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = "Reintentar", fontSize = 16.sp)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        if (!showAllLanguages) {
+                            OutlinedButton(
+                                onClick = { showAllLanguages = true },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(text = "Mostrar TODAS las voces", fontSize = 14.sp)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent("com.android.settings.TTS_SETTINGS")
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    )
+                                }.onFailure {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_SETTINGS)
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(text = "Abrir ajustes de voz de Android", fontSize = 14.sp)
+                        }
+                        if (diagnostic.isNotBlank()) {
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                text = "Diag: $diagnostic",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
             return@Column
@@ -138,7 +220,7 @@ fun VoiceSettingsScreen(onClose: () -> Unit) {
                 VoiceRow(
                     voice = voice,
                     isSelected = currentSelectionName == voice.name,
-                    onTry = { TtsManager.previewVoice(voice, "Hola, soy Beto. Estoy acá para ayudarte.") },
+                    onTry = { TtsManager.previewVoice(voice, "Hola, soy Beto. Estoy acá para ayudarte.", context) },
                     onChoose = {
                         UserVoicePreferences.save(context, voice.name)
                         currentSelectionName = voice.name

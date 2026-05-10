@@ -85,6 +85,12 @@
             android:exported="false"
             android:label="@string/app_name" />
 
+        <!-- Configuración del contacto de confianza para el Escudo Antiestafas (Phase 5) -->
+        <activity
+            android:name=".trust.TrustedContactActivity"
+            android:exported="false"
+            android:label="@string/app_name" />
+
         <!-- BetoForegroundService (Plan 03 lo implementa) — Pitfall #11 -->
         <service
             android:name=".service.BetoForegroundService"

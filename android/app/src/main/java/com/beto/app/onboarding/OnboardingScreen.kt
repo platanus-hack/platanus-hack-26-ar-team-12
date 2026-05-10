@@ -51,6 +51,8 @@ fun OnboardingScreen(
     onActivate: (PermissionItem) -> Unit,
     onContinue: () -> Unit,
     onOpenVoiceSettings: () -> Unit,
+    onOpenTrustedContact: () -> Unit,
+    trustedContactSubtitle: String? = null,
 ) {
     val context = LocalContext.current
     val items = remember { BetoPermissions.items }
@@ -103,6 +105,28 @@ fun OnboardingScreen(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        TextButton(
+            onClick = onOpenTrustedContact,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Mi contacto de confianza",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (!trustedContactSubtitle.isNullOrBlank()) {
+                    Text(
+                        text = trustedContactSubtitle,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(8.dp))

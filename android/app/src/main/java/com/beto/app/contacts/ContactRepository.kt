@@ -31,21 +31,41 @@ class ContactRepository(
         if (trimmed.isEmpty()) return emptyList()
         if (!hasPermission()) return demoFallback(trimmed)
 
-        val direct = dataSource.searchByName(trimmed).map { it.toContactInfo(dataSource) }
-        if (direct.isNotEmpty()) return direct
-
-        // Fallback fuzzy: el CONTENT_FILTER_URI a veces no matchea por acentos, prefijos cortos
-        // o nombres compuestos. Recorremos los contactos del usuario normalizando.
+        // Búsqueda RANKED para evitar que "Fran" matchee 41 contactos sin distinción.
+        // Ranking (de mejor a peor):
+        //   3 = displayName completo == query (ej. "Fran Iturain" exacto)
+        //   2 = primer nombre == query (ej. "Fran" matchea "Fran Iturain", "Fran García")
+        //   1 = alguna palabra == query
+        //   0 = substring (último recurso, NO se incluye salvo que no haya nada mejor)
         val needle = normalize(trimmed)
         if (needle.isEmpty()) return emptyList()
-        return dataSource.listContacts(limit = 500)
-            .filter { row ->
-                val haystack = normalize(row.displayName)
-                haystack == needle ||
-                    haystack.split(" ").any { it == needle } ||
-                    haystack.contains(needle)
+
+        // 1) Try CONTENT_FILTER_URI (rápido, OS-side index)
+        val direct = dataSource.searchByName(trimmed)
+        // 2) Fallback: scan completo
+        val pool = if (direct.isNotEmpty()) direct else dataSource.listContacts(limit = 500)
+
+        data class Ranked(val row: ContactRow, val score: Int)
+        val ranked = pool.mapNotNull { row ->
+            val haystack = normalize(row.displayName)
+            val words = haystack.split(" ")
+            val score = when {
+                haystack == needle -> 3
+                words.firstOrNull() == needle -> 2
+                words.any { it == needle } -> 1
+                haystack.contains(needle) -> 0
+                else -> -1
             }
-            .map { it.toContactInfo(dataSource) }
+            if (score < 0) null else Ranked(row, score)
+        }
+        if (ranked.isEmpty()) return emptyList()
+
+        // Quedarnos con el score MÁXIMO encontrado. Si hay match exacto, no devolver
+        // matches de score menor (ej. "Fran Iturain" exacto gana sobre "Francisco" substring).
+        val maxScore = ranked.maxOf { it.score }
+        return ranked
+            .filter { it.score == maxScore }
+            .map { it.row.toContactInfo(dataSource) }
     }
 
     /** Quita acentos, baja a minúsculas y compacta espacios. */

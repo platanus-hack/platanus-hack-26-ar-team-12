@@ -16,8 +16,11 @@ import com.beto.app.onboarding.OnboardingScreen
 import com.beto.app.onboarding.PermissionItem
 import com.beto.app.onboarding.VoiceSettingsActivity
 import com.beto.app.service.BetoForegroundService
+import com.beto.app.trust.TrustedContactActivity
 import com.beto.app.ui.BetoTheme
 import com.beto.app.util.LogTags
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,6 +49,9 @@ class MainActivity : ComponentActivity() {
         refreshStatuses()
         setContent {
             BetoTheme(darkTheme = false) {
+                val trustedContact by BetoApplication.trustedContactsRepository.state.collectAsState()
+                val subtitle = trustedContact?.let { "${it.relationship.label}: ${it.displayName}" }
+                    ?: "Aún sin configurar"
                 OnboardingScreen(
                     statuses = permissionStatus,
                     onActivate = { item -> handleActivate(item) },
@@ -56,6 +62,13 @@ class MainActivity : ComponentActivity() {
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                         )
                     },
+                    onOpenTrustedContact = {
+                        startActivity(
+                            Intent(this, TrustedContactActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    },
+                    trustedContactSubtitle = subtitle,
                 )
             }
         }

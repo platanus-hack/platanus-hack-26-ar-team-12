@@ -115,16 +115,20 @@ fun CompanionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()           // expande hasta el max — necesario para que weight(1f) tenga base
                 .heightIn(max = sheetMaxHeight)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             HeaderRow(onForget = viewModel::forgetSession, hasMessages = messages.isNotEmpty())
             Spacer(Modifier.height(8.dp))
 
+            // weight(1f) sobre el Box de mensajes garantiza que el InputBar y el mic
+            // SIEMPRE se vean al fondo, aún cuando QuickActions esté visible y la pantalla
+            // sea chica. El min/max rígido anterior empujaba el input fuera de la sheet.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 200.dp, max = 420.dp),
+                    .weight(1f),
             ) {
                 if (messages.isEmpty()) {
                     EmptyState()

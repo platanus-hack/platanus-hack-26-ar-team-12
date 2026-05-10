@@ -3,6 +3,8 @@ package com.beto.app.action
 import android.content.Context
 import com.beto.app.companion.ChatHistoryHolder
 import com.beto.app.companion.CompanionChatClient
+import com.beto.app.companion.CompanionMessage
+import com.beto.app.companion.Role
 import com.beto.app.contacts.ContactRepository
 import com.beto.app.guide.GuideAction
 import com.beto.app.guide.GuideController
@@ -44,26 +46,31 @@ class ActionDispatcher(
         phraseGenerator?.forIntent(intent, params) ?: PhraseFallbacks.forIntent(intent, params)
 
     /**
-     * Punto de entrada del motor de acciones.
+     * Punto de entrada ÚNICO del agente Beto. La burbuja flotante y el chat dispatchean
+     * exactamente igual — Beto es UN agente, no dos. La única diferencia entre los dos
+     * canales es la UI:
+     *   - Burbuja → solo entrada por voz.
+     *   - Ventana → voz + texto.
      *
-     * @param transcript texto del usuario (voz o chat).
-     * @param chatMode si viene del chat conversacional. En este modo, cuando el LLM no detecta
-     *   ningún tool ni clarification, en lugar de decir "no te entendí" se invoca al
-     *   `companionChat` para responder conversacionalmente con contexto de la sesión.
+     * Flow:
+     *   1) Matcher determinista (PlanC) — para los comandos canónicos del demo.
+     *   2) LLM `interpret` — devuelve tool_call, clarification, o unknown.
+     *   3) Si nada agarra → respuesta conversacional warm con la persona Beto
+     *      (NUNCA el cortante "no te entendí" — eso violaba la unificación).
      */
-    suspend fun handle(transcript: String, chatMode: Boolean = false) {
-        Timber.tag(LogTags.ACTION).d("DISPATCH_START chatMode=%s", chatMode)
+    suspend fun handle(transcript: String) {
+        Timber.tag(LogTags.ACTION).d("DISPATCH_START transcript=%s", transcript.take(80))
         when (val routed = ActionRouter.routeTranscript(transcript)) {
             is RouteOutcome.PlanC -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_PLANC_HIT")
                 executePlanC(routed.match)
             }
-            is RouteOutcome.NeedsLlm -> executeLlmRoute(routed.transcript, chatMode)
+            is RouteOutcome.NeedsLlm -> executeLlmRoute(routed.transcript)
             else -> Unit
         }
     }
 
-    private suspend fun executeLlmRoute(transcript: String, chatMode: Boolean) {
+    private suspend fun executeLlmRoute(transcript: String) {
         val decision = runCatching { llm.interpret(transcript) }
             .getOrElse {
                 Timber.tag(LogTags.ACTION).w(it, "DISPATCH_FAILED reason=llm_error")
@@ -75,32 +82,40 @@ class ActionDispatcher(
                 executeTool(routed.call, transcript)
             }
             is RouteOutcome.Clarify -> handleClarification(routed.decision, transcript)
-            RouteOutcome.Unknown -> {
-                if (chatMode && companionChat != null) {
-                    chatRespond(transcript)
-                } else {
-                    failDidNotUnderstand()
-                }
-            }
+            RouteOutcome.Unknown -> respondAsBeto(transcript)
             else -> Unit
         }
     }
 
     /**
-     * Cuando el user chatea (no comanda) y el LLM no detecta tool, respondemos con la
-     * persona conversacional. Usamos el snapshot de history del `ChatHistoryHolder` para
-     * que el LLM tenga contexto de la sesión.
+     * Beto responde como persona cuando no hay tool aplicable. SIEMPRE — sea bubble o chat.
+     * Si hay history de chat, lo usamos para contextualizar; sino, respondemos al transcript
+     * actual como si fuera el primer mensaje. Garantía: nunca decimos "no te entendí" cortante.
      */
-    private suspend fun chatRespond(transcript: String) {
-        val client = companionChat ?: run {
-            failDidNotUnderstand()
+    private suspend fun respondAsBeto(transcript: String) {
+        val client = companionChat
+        Timber.tag(LogTags.ACTION).d("DISPATCH_FALLBACK_PERSONA transcript=%s", transcript.take(50))
+
+        // Si NO tenemos cliente conversacional disponible, usamos la frase warm canned
+        // (nunca dejamos al user en silencio).
+        if (client == null) {
+            speaker.speak(phrase(PhraseIntent.UNKNOWN_COMMAND))
             return
         }
-        Timber.tag(LogTags.ACTION).d("DISPATCH_CHAT_FALLBACK transcript=%s", transcript.take(50))
-        val history = ChatHistoryHolder.current()
+
+        // Construimos history: si el chat estuvo abierto y tiene mensajes, usamos eso.
+        // Si no (caso bubble puro), creamos un history mínimo con el transcript actual
+        // para que el LLM tenga al menos el último input.
+        val existing = ChatHistoryHolder.current()
+        val history = if (existing.isNotEmpty()) {
+            existing
+        } else {
+            listOf(CompanionMessage(role = Role.USER, text = transcript))
+        }
+
         val reply = runCatching { client.chat(history) }
             .getOrElse {
-                Timber.tag(LogTags.ACTION).w(it, "CHAT_FALLBACK_FAILED")
+                Timber.tag(LogTags.ACTION).w(it, "PERSONA_FALLBACK_FAILED")
                 ""
             }
             .ifBlank { "Estoy acá. Contame un poco más." }
@@ -137,7 +152,22 @@ class ActionDispatcher(
                 ) ?: return
                 val message = call.args["message"].orEmpty()
                 if (message.isBlank()) {
-                    failDidNotUnderstand()
+                    // Recovery: si el user dijo "llamá a X por WhatsApp", el LLM elige
+                    // SEND_WHATSAPP por la palabra "WhatsApp" pero la INTENCIÓN era llamar.
+                    // Detectamos verbo de llamada en el transcript y reinterpretamos.
+                    val lower = transcript.lowercase(Locale("es", "AR"))
+                    if ("llam" in lower || "telefon" in lower || "telefón" in lower) {
+                        Timber.tag(LogTags.ACTION).d(
+                            "DISPATCH_REINTERPRET tool=%s -> make_call (verb 'llamar' in transcript)",
+                            call.tool,
+                        )
+                        executeChannel(contact, Channel.CALL, null)
+                        return
+                    }
+                    // No hay mensaje y no es llamada — respondemos como Beto persona en
+                    // vez del cortante "no te entendí". Damos contexto de qué falta.
+                    Timber.tag(LogTags.ACTION).d("DISPATCH_FALLBACK no_message tool=%s", call.tool)
+                    respondAsBeto(transcript)
                     return
                 }
                 val channel = explicitChannelFromTranscript(transcript)
@@ -158,6 +188,19 @@ class ActionDispatcher(
                     failDidNotUnderstand()
                     return
                 }
+                // Red defensiva: si el LLM pidió clarificar pero el alias YA resuelve a UN
+                // único contacto en la agenda, usémoslo directo. Cubre el caso "Fran Iturain"
+                // donde el modelo a veces sobre-clarifica nombres con apellido.
+                val direct = resolveAliasDirectly(alias, transcript)
+                if (direct != null) {
+                    Timber.tag(LogTags.ACTION).d(
+                        "DISPATCH_CLARIFY_BYPASS alias=%s -> %s (LLM over-asked)",
+                        alias,
+                        direct.displayName,
+                    )
+                    executeAfterContactClarification(transcript, direct)
+                    return
+                }
                 val contact = contactClarifier.clarify(alias) ?: return
                 executeAfterContactClarification(transcript, contact)
             }
@@ -172,6 +215,31 @@ class ActionDispatcher(
             }
             com.beto.app.llm.ExpectedAnswer.FREE_TEXT -> failDidNotUnderstand()
         }
+    }
+
+    /**
+     * Intenta resolver un alias a UN contacto único sin lanzar el clarifier.
+     * Devuelve null si el alias resuelve a 0 o 2+ contactos — en esos casos no hay
+     * dudas legítimas y el clarifier sigue siendo el camino correcto.
+     *
+     * También chequea memory.resolveAlias por si el user ya eligió alguien para ese
+     * alias en una sesión previa.
+     */
+    private fun resolveAliasDirectly(alias: String, transcript: String): ContactRef? {
+        val trimmed = alias.trim()
+        if (trimmed.isEmpty()) return null
+        memory.resolveAlias(trimmed)?.let { return it }
+        // Heurística: si el alias parece un nombre propio (al menos una palabra capitalizable
+        // o multi-palabra como "fran iturain"), buscamos en la agenda. Si hay match único, listo.
+        val matches = contacts.resolve(trimmed)
+        if (matches.size == 1) return matches.single().toContactRef()
+        // Caso extra: el LLM pudo extraer "fran iturain" pero el user dijo "llamá a Fran Iturain"
+        // — probemos también la versión exacta del transcript por si normalize() perdió algo.
+        if (trimmed.contains(" ")) {
+            val fromTranscript = contacts.resolve(transcript.trim())
+            if (fromTranscript.size == 1) return fromTranscript.single().toContactRef()
+        }
+        return null
     }
 
     private suspend fun resolveContactOrClarify(

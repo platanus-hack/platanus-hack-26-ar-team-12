@@ -6,6 +6,9 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentEvent
+import com.beto.app.scam.ChatTextExtractor
+import com.beto.app.scam.ScamPackages
+import com.beto.app.scam.ScamWatcher
 import com.beto.app.util.LogTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +20,9 @@ import timber.log.Timber
 class BetoAccessibilityService : AccessibilityService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val scamWatcher = ScamWatcher()
+    private val chatTextExtractor = ChatTextExtractor()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -32,6 +38,55 @@ class BetoAccessibilityService : AccessibilityService() {
             event.eventType,
             event.packageName,
         )
+
+        if (!ScamPackages.isWatched(event.packageName)) return
+        if (!isChatRelevantEventType(event.eventType)) return
+
+        val packageName = event.packageName?.toString() ?: return
+        val text = chatTextExtractor.extract(event) ?: return
+        if (text.isBlank()) return
+
+        Timber.tag(LogTags.ACCESSIBILITY).v(
+            "scam-pipeline pkg=%s len=%d",
+            packageName,
+            text.length,
+        )
+
+        when (val decision = scamWatcher.observe(packageName, text, System.currentTimeMillis())) {
+            is ScamWatcher.Decision.Emit -> {
+                Timber.tag(LogTags.ACCESSIBILITY).w(
+                    "scam-detected pkg=%s level=%s signals=%s hash=%s",
+                    decision.packageName,
+                    decision.assessment.level,
+                    decision.assessment.signals.map { it.name },
+                    decision.contextHash.take(8),
+                )
+                scope.launch {
+                    AgentBus.emit(
+                        AgentEvent.ScamRiskDetected(
+                            packageName = decision.packageName,
+                            assessment = decision.assessment,
+                            text = decision.text,
+                            contextHash = decision.contextHash,
+                        )
+                    )
+                }
+            }
+            is ScamWatcher.Decision.BelowThreshold -> {
+                if (decision.assessment.signals.isNotEmpty()) {
+                    Timber.tag(LogTags.ACCESSIBILITY).d(
+                        "scam-below-threshold pkg=%s level=%s signals=%s",
+                        packageName,
+                        decision.assessment.level,
+                        decision.assessment.signals.map { it.name },
+                    )
+                }
+            }
+            ScamWatcher.Decision.Cooldown,
+            ScamWatcher.Decision.Throttled,
+            ScamWatcher.Decision.Deduped,
+            ScamWatcher.Decision.Ignored -> Unit
+        }
     }
 
     override fun onInterrupt() {
@@ -93,6 +148,13 @@ class BetoAccessibilityService : AccessibilityService() {
             }
         }
         return null
+    }
+
+    private fun isChatRelevantEventType(eventType: Int): Boolean = when (eventType) {
+        AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+        AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED -> true
+        else -> false
     }
 
     companion object {

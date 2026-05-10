@@ -7,6 +7,7 @@ import android.content.Context
 import androidx.core.content.getSystemService
 import com.beto.app.llm.ClaudeLlmClient
 import com.beto.app.memory.UserMemoryStore
+import com.beto.app.trust.TrustedContactsRepository
 import com.beto.app.util.LogTags
 import com.beto.app.voice.PhraseGenerator
 import com.beto.app.voice.TtsManager
@@ -36,6 +37,7 @@ class BetoApplication : Application() {
         ensureNotificationChannel(this)
 
         userMemoryStore = UserMemoryStore(this)
+        trustedContactsRepository = TrustedContactsRepository(this)
         phraseGenerator = PhraseGenerator(ClaudeLlmClient())
         // Warm cache en background — pre-genera frases comunes para que la primera
         // interacción no espere al LLM. No bloquea boot.
@@ -45,6 +47,8 @@ class BetoApplication : Application() {
     companion object {
         const val FGS_CHANNEL_ID = "beto_service"
         lateinit var userMemoryStore: UserMemoryStore
+            private set
+        lateinit var trustedContactsRepository: TrustedContactsRepository
             private set
         lateinit var phraseGenerator: PhraseGenerator
             private set

@@ -85,7 +85,8 @@ class CompanionViewModel : ViewModel() {
     fun startVoiceInput() {
         _isCapturingVoice.value = true
         viewModelScope.launch {
-            AgentBus.command(com.beto.app.bus.AgentCommand.StartVoiceCapture())
+            // User-initiated tap → interrumpir cualquier TTS en curso (Beto puede estar respondiendo).
+            AgentBus.command(com.beto.app.bus.AgentCommand.StartVoiceCapture(interruptTts = true))
         }
     }
 

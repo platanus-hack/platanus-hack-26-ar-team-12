@@ -18,4 +18,19 @@
     <color name="beto_text_on_primary">#FFFFFF</color>
     <color name="beto_surface">#FFFFFF</color>
     <color name="beto_surface_variant">#F5F5F5</color>
+
+    <!-- Escudo Antiestafas (Phase 5 / pitch slide 6) — paleta de alerta cálida pero firme. -->
+    <color name="scam_alert_scrim">#80000000</color>          <!-- 50% black, oscurece chat detrás -->
+    <color name="scam_alert_surface">#FFFFFFFF</color>        <!-- card -->
+    <color name="scam_alert_badge_bg">#FFB71C1C</color>       <!-- rojo intenso para el chip "Escudo" -->
+    <color name="scam_alert_badge_text">#FFFFFFFF</color>
+    <color name="scam_alert_title">#FFB71C1C</color>          <!-- título alerta en rojo -->
+    <color name="scam_alert_body">#FF212121</color>
+    <color name="scam_alert_signal_bg">#FFFFEBEE</color>      <!-- chips de signals — rojo pastel -->
+    <color name="scam_alert_signal_text">#FFB71C1C</color>
+    <color name="scam_alert_button_call_bg">#FF2E7D32</color> <!-- verde acción confiable: llamar -->
+    <color name="scam_alert_button_call_text">#FFFFFFFF</color>
+    <color name="scam_alert_button_dismiss_bg">#FFEEEEEE</color>
+    <color name="scam_alert_button_dismiss_text">#FF424242</color>
+    <color name="scam_alert_button_acknowledge_text">#FF757575</color>
 </resources>

@@ -87,6 +87,20 @@ sealed class AgentEvent {
     /** Nivel de RMS del SpeechRecognizer (-2..10 dB típicamente). Para visualizer reactivo. */
     data class SttRmsChanged(val rmsdB: Float) : AgentEvent()
 
+    /**
+     * Phase 5 — el ScamWatcher detectó riesgo proactivo sobre la pantalla del usuario.
+     * `assessment` ya pasó el threshold (HIGH por default). `contextHash` se usa para dedupe
+     * cross-emisión y para que el AlertOrchestrator (Block 6) no muestre el overlay dos veces
+     * sobre el mismo contenido. `text` es lo que vio Accessibility (sin sanitizar todavía —
+     * el LLM Explainer corre el Sanitizer antes de mandar a la nube).
+     */
+    data class ScamRiskDetected(
+        val packageName: String,
+        val assessment: com.beto.app.scam.RiskAssessment,
+        val text: String,
+        val contextHash: String,
+    ) : AgentEvent()
+
     // TODO Phase 2-3: IntentClassified(toolCall: ToolCall), ActionExecuted(name: String), ToolFailed(name: String, reason: String)
     // TODO Phase 4: TreeSnapshot(nodeRefs: List<NodeRef>), AgenticIterationComplete(iter: Int), AgenticAborted(reason: String)
 }
@@ -97,7 +111,20 @@ sealed class AgentEvent {
  */
 sealed class AgentCommand {
     data class Speak(val text: String) : AgentCommand()
-    data class StartVoiceCapture(val startedAtMs: Long? = null) : AgentCommand()
+
+    /**
+     * Pide abrir el mic.
+     *  - `interruptTts = true` cuando es user-initiated (tap burbuja, tap mic en chat):
+     *    el handler debe cortar cualquier TTS en curso y abrir mic ya, porque el user
+     *    está overrideando a Beto.
+     *  - `interruptTts = false` (default) cuando lo emite un componente automático
+     *    (clarifier que pide respuesta tras hablar): debe esperar a que TTS termine
+     *    para no autograbar a Beto.
+     */
+    data class StartVoiceCapture(
+        val startedAtMs: Long? = null,
+        val interruptTts: Boolean = false,
+    ) : AgentCommand()
 
     /** Long-press en la burbuja → abre el Modo Compañero (Phase 4-03). */
     object OpenCompanion : AgentCommand()

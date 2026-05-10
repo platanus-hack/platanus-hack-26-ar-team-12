@@ -19,6 +19,14 @@ object PromptBuilder {
             args = mapOf("contact" to "Carlos"),
         ),
         Decision.ToolCall(
+            tool = ToolDescriptors.MAKE_CALL,
+            args = mapOf("contact" to "Fran Iturain"),
+        ),
+        Decision.ToolCall(
+            tool = ToolDescriptors.SEND_WHATSAPP,
+            args = mapOf("contact" to "María José", "message" to "salgo en 5"),
+        ),
+        Decision.ToolCall(
             tool = ToolDescriptors.OPEN_MAPS,
             args = mapOf("query" to "farmacia cerca"),
         ),
@@ -59,16 +67,23 @@ object PromptBuilder {
         appendLine("Beto: ${DecisionJson.encode(fewShots[2])}")
         appendLine("Usuario: llamá a Carlos")
         appendLine("Beto: ${DecisionJson.encode(fewShots[3])}")
-        appendLine("Usuario: abrime el mapa hasta la farmacia cerca")
+        // Few-shots críticos: nombre+apellido propio NO debe gatillar clarificación.
+        // Antes de agregar estos, el modelo respondía "¿quién es tu Fran Iturain?"
+        // como si el apellido fuera un alias relacional ("mi primo", "mi vecino").
+        appendLine("Usuario: llamá a Fran Iturain")
         appendLine("Beto: ${DecisionJson.encode(fewShots[4])}")
-        appendLine("Usuario: ¿cómo mando un audio por WhatsApp?")
+        appendLine("Usuario: mandale a María José que salgo en 5")
         appendLine("Beto: ${DecisionJson.encode(fewShots[5])}")
-        appendLine("Usuario: llamá a mi nieto")
+        appendLine("Usuario: abrime el mapa hasta la farmacia cerca")
         appendLine("Beto: ${DecisionJson.encode(fewShots[6])}")
-        appendLine("Usuario: mandale a Juan que ya salgo")
+        appendLine("Usuario: ¿cómo mando un audio por WhatsApp?")
         appendLine("Beto: ${DecisionJson.encode(fewShots[7])}")
-        appendLine("Usuario: contame un chiste")
+        appendLine("Usuario: llamá a mi nieto")
         appendLine("Beto: ${DecisionJson.encode(fewShots[8])}")
+        appendLine("Usuario: mandale a Juan que ya salgo")
+        appendLine("Beto: ${DecisionJson.encode(fewShots[9])}")
+        appendLine("Usuario: contame un chiste")
+        appendLine("Beto: ${DecisionJson.encode(fewShots[10])}")
         appendLine()
         appendLine("Usuario: $sanitizedTranscript")
         appendLine("Beto:")
@@ -80,7 +95,17 @@ object PromptBuilder {
         Tu trabajo es interpretar lo que dijo el usuario y devolver una decisión estructurada.
         Usá vocabulario simple, voseo argentino y frases cortas.
         No ejecutes acciones por texto libre: devolvé una tool permitida, una clarification o unknown.
-        Si falta el contacto, devolvé needs_clarification con expecting CONTACT_NAME.
+
+        IMPORTANTE sobre contactos:
+        - Si el usuario nombra a alguien con un nombre propio (sea solo nombre como "Juan",
+          o nombre y apellido como "Fran Iturain", "María José", "Ana Martínez"), tratalo
+          como `contact` y devolvé la tool DIRECTAMENTE. NO clarifiques.
+        - Solo devolvé `needs_clarification` con `CONTACT_NAME` si el usuario usa una
+          referencia relacional ambigua sin nombre ("a mi primo", "a la doctora", "a él")
+          y no sabés todavía a quién se refiere.
+        - Aliases familiares como "mi nieto Juan" o "mi hija Sofi" SÍ traen el nombre,
+          tratalos como tool_call con contact="mi nieto Juan" o contact="Sofi".
+
         Si falta el canal para un mensaje, devolvé needs_clarification con expecting CHANNEL.
         Si no estás seguro, devolvé unknown para que el matcher determinista tome la posta.
         Respondé solamente JSON válido, sin Markdown ni explicación.
