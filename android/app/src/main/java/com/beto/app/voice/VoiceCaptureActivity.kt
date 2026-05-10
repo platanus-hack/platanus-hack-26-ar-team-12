@@ -27,7 +27,10 @@ class VoiceCaptureActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var startedAtMs: Long = 0L
     private var launchedRecognizer = false
-    private var preferOnDeviceRecognizer = true
+    // Cloud-backed STT is the recommended path per ARCHITECTURE.md (more accurate,
+    // es-AR widely supported). On-device es-AR model is rarely shipped on devices,
+    // and the post-speech retry path doesn't fall back, so transcripts come back empty.
+    private var preferOnDeviceRecognizer = false
     private var speechStarted = false
     private var recognizer: SpeechRecognizer? = null
     private val sttCorrector by lazy { SttCorrector(GeminiLlmClient()) }

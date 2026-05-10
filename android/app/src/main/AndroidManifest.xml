@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Required on Android 11+ (targetSdk 30+) for SpeechRecognizer to bind to the
+         system RecognitionService. Without this, createSpeechRecognizer() returns a
+         recognizer that silently fails (mic activates, no transcript). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <!-- Permisos críticos Phase 1+ (CONTEXT.md + Pitfall #11) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
