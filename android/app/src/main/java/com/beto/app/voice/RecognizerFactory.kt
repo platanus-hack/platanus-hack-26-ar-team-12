@@ -7,9 +7,9 @@ import com.beto.app.util.LogTags
 import timber.log.Timber
 
 object RecognizerFactory {
-    fun create(context: Context): SpeechRecognizer {
-        val canOnDevice = canUseOnDevice(context)
-        return if (canOnDevice) {
+    fun create(context: Context, preferOnDevice: Boolean = true): SpeechRecognizer {
+        val useOnDevice = preferOnDevice && canUseOnDevice(context)
+        return if (useOnDevice) {
             SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also {
                 Timber.tag(LogTags.STT).d("Using on-device recognizer")
             }

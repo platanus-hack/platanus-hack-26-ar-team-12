@@ -27,6 +27,8 @@ class VoiceCaptureActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var startedAtMs: Long = 0L
     private var launchedRecognizer = false
+    private var preferOnDeviceRecognizer = true
+    private var speechStarted = false
     private var recognizer: SpeechRecognizer? = null
     private val sttCorrector by lazy { SttCorrector(GeminiLlmClient()) }
     private val contacts by lazy { ContactRepository(this) }
@@ -53,14 +55,18 @@ class VoiceCaptureActivity : Activity() {
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerFactory.shouldPreferOffline(this@VoiceCaptureActivity))
+            putExtra(
+                RecognizerIntent.EXTRA_PREFER_OFFLINE,
+                preferOnDeviceRecognizer && RecognizerFactory.shouldPreferOffline(this@VoiceCaptureActivity),
+            )
         }
         runCatching {
-            val speechRecognizer = RecognizerFactory.create(this)
+            val speechRecognizer = RecognizerFactory.create(this, preferOnDevice = preferOnDeviceRecognizer)
             recognizer = speechRecognizer
             speechRecognizer.setRecognitionListener(BetoRecognitionListener())
             speechRecognizer.startListening(intent)
         }.onFailure { error ->
+            if (retryAfterOnDeviceLaunchFailure(error)) return
             emitFailure("recognizer_launch:${error::class.simpleName}")
         }
     }
@@ -116,6 +122,32 @@ class VoiceCaptureActivity : Activity() {
         }
     }
 
+    private fun retryWithNetworkRecognizer(error: Int): Boolean {
+        if (!preferOnDeviceRecognizer || speechStarted) return false
+        preferOnDeviceRecognizer = false
+        Timber.tag(LogTags.STT).w(
+            "On-device recognizer failed before speech with error=%d; retrying cloud-backed recognizer",
+            error,
+        )
+        recognizer?.destroy()
+        recognizer = null
+        launchRecognizer()
+        return true
+    }
+
+    private fun retryAfterOnDeviceLaunchFailure(error: Throwable): Boolean {
+        if (!preferOnDeviceRecognizer) return false
+        preferOnDeviceRecognizer = false
+        Timber.tag(LogTags.STT).w(
+            error,
+            "On-device recognizer launch failed; retrying cloud-backed recognizer",
+        )
+        recognizer?.destroy()
+        recognizer = null
+        launchRecognizer()
+        return true
+    }
+
     override fun onDestroy() {
         recognizer?.destroy()
         recognizer = null
@@ -125,7 +157,9 @@ class VoiceCaptureActivity : Activity() {
 
     private inner class BetoRecognitionListener : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) = Unit
-        override fun onBeginningOfSpeech() = Unit
+        override fun onBeginningOfSpeech() {
+            speechStarted = true
+        }
         override fun onRmsChanged(rmsdB: Float) = Unit
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
@@ -133,6 +167,7 @@ class VoiceCaptureActivity : Activity() {
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
         override fun onError(error: Int) {
+            if (retryWithNetworkRecognizer(error)) return
             emitFailure("recognizer_error:$error")
         }
 
