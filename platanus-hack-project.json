@@ -1,5 +1,6 @@
 {
-  "project-name": "BETO",
-  "project-oneliner-spanish": "BETO, el amigo tecnologico de los mayores",
-  "project-description-spanish": "Una aplicación diseñada para ayudar a adultos mayores a usar el celular de manera simple, segura y sin miedo. La app ofrece asistencia paso a paso para tareas cotidianas como usar WhatsApp, hacer videollamadas, enviar fotos o realizar trámites online. Además, incorpora un sistema inteligente de prevención de estafas digitales que detecta mensajes sospechosos, llamadas fraudulentas y posibles intentos de phishing, alertando al usuario antes de que pueda ser engañado. "
+  "project-name": "Beto",
+  "project-oneliner-spanish": "Beto es un asistente de inteligencia artificial que ayuda a los usuarios a encontrar información sobre el mundo del fútbol, incluyendo resultados de partidos, estadísticas de jugadores y noticias relacionadas.",
+  "project-description-spanish": "Beto es un asistente de inteligencia artificial que ayuda a los usuarios a encontrar información sobre el mundo del fútbol, incluyendo resultados de partidos, estadísticas de jugadores y noticias relacionadas.",
+  "deploy-url": "https://drive.google.com/file/d/1xjvWaxv7FdqtSb0FXtaYbaoICFE2BqFZ/view?usp=sharing!"
 }
