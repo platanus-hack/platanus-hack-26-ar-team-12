@@ -49,3 +49,5 @@ Beto helps older adults regain confidence and independence while reducing the ri
 Our goal is to transform smartphones into safer and more accessible spaces for older adults through intelligent assistance, protection, and human-centered design.
 
 **Beto — Speak. Understand. Protect.**
+
+deploy-url https://drive.google.com/file/d/1xjvWaxv7FdqtSb0FXtaYbaoICFE2BqFZ/view?usp=sharing
