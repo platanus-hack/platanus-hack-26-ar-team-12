@@ -12,4 +12,5 @@ object LogTags {
     const val INTENT = "Beto-Intent"
     const val TTS = "Beto-TTS"
     const val BUS = "Beto-Bus"
+    const val MEMORY = "Beto-Memory"
 }

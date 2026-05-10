@@ -9,6 +9,7 @@ firebaseBom = "34.7.0"
 desugar = "2.1.2"
 lifecycle = "2.8.7"
 junit = "4.13.2"
+securityCrypto = "1.1.0-alpha07"
 
 [libraries]
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
@@ -19,6 +20,7 @@ timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "tim
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycle" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version = "1.13.1" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]

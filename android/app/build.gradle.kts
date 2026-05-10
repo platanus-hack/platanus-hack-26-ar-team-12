@@ -54,6 +54,7 @@ dependencies {
     // AndroidX
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.service)
+    implementation(libs.androidx.security.crypto)
 
     // Logging
     implementation(libs.timber)
