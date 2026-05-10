@@ -13,7 +13,7 @@ import timber.log.Timber
  * Application class — boot-time wiring.
  *
  * Responsabilidades:
- *  1. Plant Timber DebugTree para que los tags Beto-XXX funcionen desde T0.
+ *  1. Plant Timber DebugTree solo en debug para que los tags Beto-XXX no filtren datos en release.
  *  2. Pre-warmear TtsManager (Pitfall #3 — init temprano evita race del primer speak).
  *  3. Crear el NotificationChannel `beto_service` antes de que BetoForegroundService.startForeground lo use.
  */
@@ -21,8 +21,10 @@ class BetoApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Timber primero — todo lo demás puede loguear desde acá en adelante
-        Timber.plant(Timber.DebugTree())
+        // Timber primero — todo lo demás puede loguear desde acá en adelante.
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
         Timber.tag(LogTags.TTS).i("BetoApplication.onCreate — Beto starting up")
 
         // TTS pre-warmed (Pitfall #3) — init temprano, NO en el momento del primer comando

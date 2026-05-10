@@ -25,9 +25,9 @@ class BetoAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         Timber.tag(LogTags.ACCESSIBILITY).v(
-            "event type=%s package=%s",
+            "event type=%s packagePresent=%s",
             event.eventType,
-            event.packageName,
+            event.packageName != null,
         )
     }
 

@@ -32,7 +32,6 @@ class PlanCController(
             return
         }
 
-        Timber.tag(LogTags.STT).i("PLAN_C_STT_RESULT elapsedMs=%d text=%s", elapsedMs, normalizedText)
         val merged = mergeWithPending(normalizedText)
         when (val result = DeterministicMatcher.match(merged)) {
             is MatchResult.Matched -> handleMatched(result)
@@ -48,7 +47,7 @@ class PlanCController(
     }
 
     private fun handleMatched(result: MatchResult.Matched) {
-        Timber.tag(LogTags.ACTION).i("PLAN_C_MATCHED contact=%s", result.contact.canonicalName)
+        Timber.tag(LogTags.ACTION).i("PLAN_C_MATCHED contactResolved=true")
         speak("Abro WhatsApp con el mensaje para tu nieto.")
         when (val actionResult = sendWhatsapp(context, result.contact, result.message)) {
             ActionResult.Launched -> {

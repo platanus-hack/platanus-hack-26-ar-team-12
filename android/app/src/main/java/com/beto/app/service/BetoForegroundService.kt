@@ -49,7 +49,6 @@ class BetoForegroundService : LifecycleService() {
             AgentBus.commands.collect { command ->
                 when (command) {
                     is AgentCommand.Speak -> {
-                        Timber.tag(LogTags.TTS).d("Cmd Speak -> %s", command.text)
                         TtsManager.speak(command.text)
                     }
                     is AgentCommand.StartVoiceCapture -> {

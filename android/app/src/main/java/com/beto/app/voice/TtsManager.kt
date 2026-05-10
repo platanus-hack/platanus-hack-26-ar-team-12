@@ -84,7 +84,6 @@ object TtsManager {
     fun speak(text: String) {
         if (text.isBlank()) return
         if (!isReady) {
-            Timber.tag(LogTags.TTS).d("speak() pre-init — encolando: %s", text)
             pendingQueue.add(text)
             return
         }
@@ -94,10 +93,7 @@ object TtsManager {
     private fun speakNow(text: String) {
         val id = "beto-utt-${utteranceCounter.incrementAndGet()}"
         val res = tts?.speak(text, TextToSpeech.QUEUE_ADD, null, id)
-        if (res == TextToSpeech.SUCCESS) {
-            Timber.tag(LogTags.TTS).d("speak ok id=%s text=%s", id, text)
-        } else {
-            Timber.tag(LogTags.TTS).e("speak fail res=%s text=%s", res, text)
+        if (res != TextToSpeech.SUCCESS) {
             emitFailed("speak_failed:$res")
         }
     }
@@ -105,7 +101,6 @@ object TtsManager {
     private fun flushPending() {
         while (true) {
             val next = pendingQueue.poll() ?: break
-            Timber.tag(LogTags.TTS).d("flushPending -> %s", next)
             speakNow(next)
         }
     }

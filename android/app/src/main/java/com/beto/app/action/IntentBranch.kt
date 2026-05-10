@@ -38,7 +38,11 @@ object IntentBranch {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         return try {
-            Timber.tag(LogTags.INTENT).i("Launching WhatsApp uri=%s package=%s", spec.uri, spec.packageName)
+            Timber.tag(LogTags.INTENT).i(
+                "Launching WhatsApp package=%s messageLength=%d",
+                spec.packageName,
+                message.length,
+            )
             context.startActivity(intent)
             ActionResult.Launched
         } catch (e: RuntimeException) {
