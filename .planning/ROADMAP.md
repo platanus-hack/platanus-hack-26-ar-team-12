@@ -16,8 +16,8 @@ Beto se construye en 7 fases que entregan capacidades end-to-end de usuario, no 
 
 - [x] **Phase 1: Foundation & Sync de Hora 0** — Contrato compartido, manifest+permisos, esqueleto de burbuja, TTS pre-warmed, pre-flight check
 - [x] **Phase 2: Vertical Slice Mínimo (Plan C Offline)** — Tap → STT → matcher determinista → Intent WhatsApp → TTS, sin LLM
-- [ ] **Phase 3: Cerebro IA + Memoria + Multi-canal con aprendizaje** — Gemini client + sanitizer + STT corrector + acceso a contactos del sistema + memoria persistida + router multi-canal que aprende
-- [ ] **Phase 4: Voz humana + UX senior + Compañero + Guía con gestos** — TTS neural + respuestas generadas por LLM + 5 estados burbuja + tipografía senior + chat Compañero + flecha visual sobre target
+- [x] **Phase 3: Cerebro IA + Memoria + Multi-canal con aprendizaje** — Gemini client + sanitizer + STT corrector + acceso a contactos del sistema + memoria persistida + router multi-canal que aprende
+- [x] **Phase 4: Voz humana + UX senior + Compañero + Guía con gestos** — TTS neural + respuestas generadas por LLM + 5 estados burbuja + tipografía senior + chat Compañero + flecha visual sobre target
 - [ ] **Phase 5: Anti-fraude reactivo** — Tool de análisis de estafa + UX para invocarlo por voz
 - [ ] **Phase 6: Activación rápida (opcional)** — Botón físico (vol-down 2s) y/o wake word
 - [ ] **Phase 7: Demo Readiness** — Freeze APK, hot-spare, hotspot, checklist físico, ensayos, video respaldo, submission
@@ -127,8 +127,8 @@ Phases ejecutan en orden numérico: 1 → 2 → 3 → 4 → 5 → 6 → 7. Phase
 |-------|----------------|--------|-----------|
 | 1. Foundation & Sync de Hora 0 | 3/3 | ✓ Done | 2026-05-09 |
 | 2. Vertical Slice Mínimo (Plan C Offline) | 3/3 | ✓ Done | 2026-05-09 |
-| 3. Cerebro IA + Memoria + Multi-canal | 0/5 | Planning → Execute | — |
-| 4. Voz humana + UX + Compañero + Guía con gestos | 0/4 | Plans escritos | — |
+| 3. Cerebro IA + Memoria + Multi-canal | 5/5 | ✓ Done | 2026-05-09 |
+| 4. Voz humana + UX + Compañero + Guía con gestos | 4/4 | ✓ Done | 2026-05-10 |
 | 5. Anti-fraude reactivo | 0/2 | Plans escritos | — |
 | 6. Activación rápida (opcional) | 0/2 | Plans escritos | — |
 | 7. Demo Readiness | 0/1 | Plans escritos | — |
