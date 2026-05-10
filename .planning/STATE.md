@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-05-09 — full reframe)
 Phase: 3 (Cerebro IA + Memoria + Multi-canal) — PLANNING
 Plan: 0 of 5 (plans being written)
 Status: Plans being authored after roadmap reframe
-Last activity: 2026-05-09 -- Roadmap reframed (5 → 7 phases) and old Phase 3/4 deleted
+Last activity: 2026-05-10 -- Completed quick task 260510-11o: Migrar de Gemini (Firebase AI Logic) a Claude API (anthropic-java)
 
 Progress overall: [██░░░░░░░░] 29% (2 of 7 phases complete)
 
@@ -84,9 +84,15 @@ Recent decisions affecting current work:
 - Pendiente: ejecutar Phase 3 (Wave 1 paraleliza 03-01 + 03-03 + 03-04).
 - Sincronizar `docs/STATUS.md` cuando Phase 3 esté en ejecución.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260510-11o | Migrar de Gemini (Firebase AI Logic) a Claude API (anthropic-java) | 2026-05-10 | 183b799 | [260510-11o-migrar-de-gemini-firebase-ai-logic-a-cla](./quick/260510-11o-migrar-de-gemini-firebase-ai-logic-a-cla/) |
+
 ### Blockers / Concerns
 
-- Phase 3 / 4 dependen de comportamiento real de Gemini 2.5 Flash en es-AR — solo medible al smoke test post-Phase 3.1. Mitigación: `LlmClient` interface con dos impls (Gemini default, Anthropic fallback comentado).
+- Phase 3 / 4 dependen de comportamiento real de **Claude Haiku 4.5** en es-AR — solo medible al smoke test post-Phase 3.1. Migración a `anthropic-java` 2.30.0 completada (quick 260510-11o).
 - Voz neural premium TTS depende del device de demo — verificar en el teléfono real al inicio de Phase 4.
 - Modo Guía con gestos depende de poder localizar Views target por texto/id en apps externas (WhatsApp, etc.) vía AccessibilityService — alguno requerirá heurísticas específicas.
 - Anti-fraude requiere prompt que no genere falsos positivos sobre mensajes legítimos — necesita curado de ejemplos.
@@ -95,7 +101,7 @@ Recent decisions affecting current work:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| LLM strategy | Anthropic fallback (anthropic-java) | Comentado en code, activable si Gemini falla | 2026-05-09 |
+| LLM strategy | Anthropic ahora es el provider principal (Haiku 4.5) — Gemini fallback removido | Migrado en quick 260510-11o | 2026-05-10 |
 | Wake word | Implementación real ("Hola Beto") | Phase 6 opcional, requiere spike previo | 2026-05-09 |
 | Anti-fraude proactivo | Monitor continuo de notificaciones/SMS | Out of scope v1, candidato v2 | 2026-05-09 |
 | RAG memoria | Embeddings + retrieval para perfil grande | Out of scope v1 | 2026-05-09 |
