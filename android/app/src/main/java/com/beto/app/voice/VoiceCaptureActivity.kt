@@ -5,9 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentEvent
+import com.beto.app.action.DeterministicMatcher
+import com.beto.app.action.MatchResult
 import com.beto.app.util.LogTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +25,8 @@ class VoiceCaptureActivity : Activity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var startedAtMs: Long = 0L
     private var launchedRecognizer = false
+    private var recognizer: SpeechRecognizer? = null
+    private val sttCorrector = SttCorrector(NoOpTranscriptCorrectionClient)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,34 +50,59 @@ class VoiceCaptureActivity : Activity() {
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerFactory.shouldPreferOffline(this@VoiceCaptureActivity))
         }
         runCatching {
-            startActivityForResult(intent, REQUEST_RECOGNIZE_SPEECH)
+            val speechRecognizer = RecognizerFactory.create(this)
+            recognizer = speechRecognizer
+            speechRecognizer.setRecognitionListener(BetoRecognitionListener())
+            speechRecognizer.startListening(intent)
         }.onFailure { error ->
             emitFailure("recognizer_launch:${error::class.simpleName}")
         }
     }
 
-    @Deprecated("Activity Result API replacement is deferred; this keeps min wiring compact.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_RECOGNIZE_SPEECH) return
-
+    private fun handleRecognitionResult(transcript: String?, confidence: Float?) {
         val elapsedMs = SystemClock.elapsedRealtime() - startedAtMs
-        val transcript = data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull { it.isNotBlank() }
-            ?.trim()
-
-        if (resultCode == RESULT_OK && !transcript.isNullOrBlank()) {
-            Timber.tag(LogTags.STT).i("PLAN_C_STT_RESULT elapsedMs=%d", elapsedMs)
-            scope.launch {
-                AgentBus.emit(AgentEvent.VoiceCaptured(transcript, elapsedMs))
-                finish()
-            }
-        } else {
+        if (transcript.isNullOrBlank()) {
             emitFailure("empty_or_cancelled", elapsedMs)
+            return
         }
+
+        Timber.tag(LogTags.STT).i(
+            "PLAN_C_STT_RESULT elapsedMs=%d confidence=%s",
+            elapsedMs,
+            confidence?.toString() ?: "unknown",
+        )
+        scope.launch {
+            val finalTranscript = maybeCorrectTranscript(transcript.trim(), confidence)
+            AgentBus.emit(AgentEvent.VoiceCaptured(finalTranscript, elapsedMs))
+            finish()
+        }
+    }
+
+    private suspend fun maybeCorrectTranscript(raw: String, confidence: Float?): String {
+        if (!shouldCorrect(raw, confidence)) return raw
+
+        val correctionStartedAt = SystemClock.elapsedRealtime()
+        AgentBus.emit(AgentEvent.SttCorrectionStarted(raw, confidence))
+        val corrected = sttCorrector.correct(
+            raw = raw,
+            context = SttContext(knownContacts = emptyList(), lastCommand = null),
+        )
+        Timber.tag(LogTags.STT).i(
+            "STT_CORRECTED elapsedMs=%d changed=%s",
+            SystemClock.elapsedRealtime() - correctionStartedAt,
+            corrected != raw,
+        )
+        return corrected
+    }
+
+    private fun shouldCorrect(transcript: String, confidence: Float?): Boolean {
+        val lowConfidence = confidence != null && confidence < CONFIDENCE_THRESHOLD
+        val noPlanCMatch = DeterministicMatcher.match(transcript) == MatchResult.NoMatch
+        val shortCommand = transcript.split(Regex("\\s+")).count { it.isNotBlank() } <= SHORT_COMMAND_MAX_WORDS
+        return lowConfidence || (noPlanCMatch && shortCommand)
     }
 
     private fun emitFailure(reason: String, elapsedMs: Long = SystemClock.elapsedRealtime() - startedAtMs) {
@@ -83,13 +114,42 @@ class VoiceCaptureActivity : Activity() {
     }
 
     override fun onDestroy() {
+        recognizer?.destroy()
+        recognizer = null
         scope.cancel()
         super.onDestroy()
     }
 
+    private inner class BetoRecognitionListener : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onBeginningOfSpeech() = Unit
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() = Unit
+        override fun onPartialResults(partialResults: Bundle?) = Unit
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+
+        override fun onError(error: Int) {
+            emitFailure("recognizer_error:$error")
+        }
+
+        override fun onResults(results: Bundle?) {
+            val transcript = results
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull { it.isNotBlank() }
+                ?.trim()
+            val confidence = results
+                ?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+                ?.firstOrNull()
+                ?.takeUnless { it < 0f }
+            handleRecognitionResult(transcript, confidence)
+        }
+    }
+
     companion object {
-        private const val REQUEST_RECOGNIZE_SPEECH = 2401
         private const val EXTRA_STARTED_AT_MS = "com.beto.app.voice.STARTED_AT_MS"
+        private const val CONFIDENCE_THRESHOLD = 0.6f
+        private const val SHORT_COMMAND_MAX_WORDS = 7
 
         fun startIntent(context: Context, startedAtMs: Long? = null): Intent =
             Intent(context, VoiceCaptureActivity::class.java)

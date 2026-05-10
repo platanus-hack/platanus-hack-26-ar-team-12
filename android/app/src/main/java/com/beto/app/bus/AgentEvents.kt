@@ -33,6 +33,9 @@ sealed class AgentEvent {
     /** Resultado final de Android SpeechRecognizer/RecognizerIntent. */
     data class VoiceCaptured(val text: String, val elapsedMs: Long) : AgentEvent()
 
+    /** Se disparó corrección de STT para un transcript ambiguo. */
+    data class SttCorrectionStarted(val raw: String, val confidence: Float?) : AgentEvent()
+
     /** Captura de voz cancelada, vacía, o fallida. */
     data class VoiceCaptureFailed(val reason: String, val elapsedMs: Long) : AgentEvent()
 
