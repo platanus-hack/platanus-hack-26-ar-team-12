@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Senior typography (UX-01). Mínimo 22sp para body; ≥28sp para hero/heading. -->
+    <dimen name="beto_text_hero">28sp</dimen>
+    <dimen name="beto_text_heading">24sp</dimen>
+    <dimen name="beto_text_body">22sp</dimen>
+    <dimen name="beto_text_button">20sp</dimen>
+    <dimen name="beto_text_small">18sp</dimen>
+
+    <!-- Bubble dimensions (D-13 / D-14). -->
+    <dimen name="beto_bubble_size">64dp</dimen>
+    <dimen name="beto_bubble_ring_width">4dp</dimen>
+    <dimen name="beto_bubble_state_icon_size">24dp</dimen>
+    <dimen name="beto_bubble_state_icon_margin">2dp</dimen>
+</resources>

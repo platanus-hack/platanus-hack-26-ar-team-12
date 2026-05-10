@@ -24,11 +24,17 @@ sealed class AgentEvent {
     /** La burbuja fue soltada en la zona inferior central para cerrar Beto. */
     object BubbleCloseRequested : AgentEvent()
 
+    /** TTS empezó a pronunciar (onStart). Phase 4 lo usa para transicionar bubble state a SPEAKING. */
+    data class TtsStarted(val utteranceId: String) : AgentEvent()
+
     /** TTS pronunció una frase exitosamente. */
     data class TtsSpoke(val text: String) : AgentEvent()
 
     /** TTS falló. Razón típica: init no completado, voz no descargada, idioma no soportado. */
     data class TtsFailed(val reason: String) : AgentEvent()
+
+    /** SpeechRecognizer se conectó y empezó a escuchar (Phase 4 lo usa para LISTENING state). */
+    object VoiceCaptureStarted : AgentEvent()
 
     /** Resultado final de Android SpeechRecognizer/RecognizerIntent. */
     data class VoiceCaptured(val text: String, val elapsedMs: Long) : AgentEvent()
@@ -38,6 +44,15 @@ sealed class AgentEvent {
 
     /** Captura de voz cancelada, vacía, o fallida. */
     data class VoiceCaptureFailed(val reason: String, val elapsedMs: Long) : AgentEvent()
+
+    /** Captura de voz superó el timeout sin detectar speech (Phase 4: vuelve a IDLE). */
+    object VoiceCaptureTimeout : AgentEvent()
+
+    /** Un Intent fue disparado exitosamente (WhatsApp/SMS/llamada/Maps). */
+    data class IntentLaunched(val tool: String) : AgentEvent()
+
+    /** Un tool del LLM o un Intent falló al ejecutarse. */
+    data class ToolFailed(val tool: String, val reason: String) : AgentEvent()
 
     /** BetoAccessibilityService o BetoForegroundService onCreate / onServiceConnected. */
     object ServiceStarted : AgentEvent()

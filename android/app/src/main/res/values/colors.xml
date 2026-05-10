@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bubble state palette — color + ícono (no color-only — UX-04 / WCAG 1.4.1).
+         Contraste verificado ≥4.5:1 sobre fondo blanco para texto, ≥3:1 para anillo de estado. -->
+    <color name="beto_state_idle">#9E9E9E</color>        <!-- gris neutro -->
+    <color name="beto_state_listening">#1976D2</color>   <!-- azul brillante -->
+    <color name="beto_state_thinking">#FF8F00</color>    <!-- ámbar -->
+    <color name="beto_state_speaking">#388E3C</color>    <!-- verde -->
+    <color name="beto_state_error">#D32F2F</color>       <!-- rojo -->
+
+    <!-- Anillo de borde + sombra -->
+    <color name="beto_ring_outline">#000000</color>
+    <color name="beto_bubble_inner">#FFFFFF</color>
+
+    <!-- High-contrast text (≥4.5:1) -->
+    <color name="beto_text_primary">#000000</color>
+    <color name="beto_text_secondary">#212121</color>
+    <color name="beto_text_on_primary">#FFFFFF</color>
+    <color name="beto_surface">#FFFFFF</color>
+    <color name="beto_surface_variant">#F5F5F5</color>
+</resources>

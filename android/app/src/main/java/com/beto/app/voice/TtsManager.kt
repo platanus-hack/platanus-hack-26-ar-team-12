@@ -205,7 +205,11 @@ object TtsManager {
     }
 
     private val progressListener = object : UtteranceProgressListener() {
-        override fun onStart(utteranceId: String?) {}
+        override fun onStart(utteranceId: String?) {
+            utteranceId?.let { id ->
+                scope.launch { AgentBus.emit(AgentEvent.TtsStarted(id)) }
+            }
+        }
         override fun onDone(utteranceId: String?) {
             // Resume any pending continuation registered by speakAndAwait(). El listener es global,
             // así que cualquier utterance —incluyendo speak() normal— va a llegar acá. Si no hay

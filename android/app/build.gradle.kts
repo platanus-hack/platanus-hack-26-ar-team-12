@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
 
@@ -39,11 +40,12 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 }
 
 dependencies {
-    // Firebase + Gemini (LLM se usa desde Phase 3 — solo declarar deps acá)
+    // Firebase + Gemini
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.ai)
 
@@ -55,6 +57,15 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // Compose (BOM-managed) — Phase 4: BetoTheme + Modo Compañero sheet
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.foundation)
 
     // Logging
     implementation(libs.timber)

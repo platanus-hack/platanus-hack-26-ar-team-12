@@ -8,8 +8,14 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.beto.app.bus.AgentBus
+import com.beto.app.bus.AgentEvent
 import com.beto.app.memory.ContactRef
 import com.beto.app.util.LogTags
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.net.URLEncoder
 
@@ -54,9 +60,11 @@ object IntentBranch {
         return try {
             Timber.tag(LogTags.INTENT).i("INTENT_LAUNCHED tool=send_whatsapp package=%s", WHATSAPP_PACKAGE)
             context.startActivity(intent)
+            emitLaunchedEvent("send_whatsapp")
             ActionResult.Launched
         } catch (e: RuntimeException) {
             Timber.tag(LogTags.INTENT).w(e, "WhatsApp launch failed reason=%s", e::class.simpleName)
+            emitFailedEvent("send_whatsapp", e::class.simpleName ?: "runtime_exception")
             ActionResult.Failed(e::class.simpleName ?: "runtime_exception")
         }
     }
@@ -104,11 +112,23 @@ object IntentBranch {
         try {
             context.startActivity(intent)
             Timber.tag(LogTags.INTENT).i("INTENT_LAUNCHED tool=%s package=%s", tool, intent.`package`)
+            emitLaunchedEvent(tool)
             ActionResult.Launched
         } catch (e: RuntimeException) {
             Timber.tag(LogTags.INTENT).w(e, "Intent launch failed tool=%s reason=%s", tool, e::class.simpleName)
+            emitFailedEvent(tool, e::class.simpleName ?: "runtime_exception")
             ActionResult.Failed(e::class.simpleName ?: "runtime_exception")
         }
+
+    private fun emitLaunchedEvent(tool: String) {
+        intentEventScope.launch { AgentBus.emit(AgentEvent.IntentLaunched(tool)) }
+    }
+
+    private fun emitFailedEvent(tool: String, reason: String) {
+        intentEventScope.launch { AgentBus.emit(AgentEvent.ToolFailed(tool, reason)) }
+    }
+
+    private val intentEventScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private fun encodeForWaMe(message: String): String =
         URLEncoder.encode(message, Charsets.UTF_8.name()).replace("+", "%20")

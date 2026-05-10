@@ -159,7 +159,9 @@ class VoiceCaptureActivity : Activity() {
     }
 
     private inner class BetoRecognitionListener : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onReadyForSpeech(params: Bundle?) {
+            scope.launch { AgentBus.emit(AgentEvent.VoiceCaptureStarted) }
+        }
         override fun onBeginningOfSpeech() {
             speechStarted = true
         }
