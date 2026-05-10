@@ -2,6 +2,8 @@ package com.beto.app.action
 
 import android.content.Context
 import com.beto.app.contacts.ContactRepository
+import com.beto.app.guide.GuideAction
+import com.beto.app.guide.GuideController
 import com.beto.app.llm.Decision
 import com.beto.app.llm.LlmClient
 import com.beto.app.llm.ToolDescriptors
@@ -26,6 +28,7 @@ class ActionDispatcher(
     private val channelClarifier: ChannelClarifier,
     private val speaker: Speaker,
     private val phraseGenerator: PhraseGenerator? = null,
+    private val guideController: GuideController? = null,
     private val sendWhatsapp: (Context, DemoContact, String) -> ActionResult = IntentBranch::sendWhatsapp,
     private val scope: CoroutineScope? = null,
 ) {
@@ -83,6 +86,7 @@ class ActionDispatcher(
     private suspend fun executeTool(call: Decision.ToolCall, transcript: String) {
         when (call.tool) {
             ToolDescriptors.OPEN_MAPS -> executeMaps(call.args["query"].orEmpty())
+            ToolDescriptors.SHOW_HOW_TO -> executeShowHowTo(call.args["action"].orEmpty())
             ToolDescriptors.MAKE_CALL -> {
                 val contact = resolveContactOrClarify(call.args["contact"].orEmpty()) ?: return
                 executeChannel(contact, Channel.CALL, null)
@@ -183,6 +187,28 @@ class ActionDispatcher(
             }
         }
     }
+
+    private suspend fun executeShowHowTo(actionArg: String) {
+        val action = parseGuideAction(actionArg)
+        if (action == null) {
+            Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=unknown_guide_action arg=%s", actionArg)
+            failDidNotUnderstand()
+            return
+        }
+        val controller = guideController
+        val scope = scope
+        if (controller == null || scope == null) {
+            Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=guide_unavailable")
+            failDidNotUnderstand()
+            return
+        }
+        Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=show_how_to action=%s", action)
+        controller.start(action, scope)
+    }
+
+    private fun parseGuideAction(arg: String): GuideAction? = runCatching {
+        GuideAction.valueOf(arg.uppercase().replace('-', '_'))
+    }.getOrNull()
 
     private suspend fun executeMaps(query: String) {
         if (query.isBlank()) {

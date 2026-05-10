@@ -54,6 +54,18 @@ sealed class AgentEvent {
     /** Un tool del LLM o un Intent falló al ejecutarse. */
     data class ToolFailed(val tool: String, val reason: String) : AgentEvent()
 
+    /** Modo Guía (Phase 4-04) — el LLM disparó `show_how_to(action)` y el guide arranca. */
+    data class GuideStarted(val action: com.beto.app.guide.GuideAction) : AgentEvent()
+
+    /** Cada vez que la flecha se muestra sobre un step del guide. */
+    data class GuideStepShown(val action: com.beto.app.guide.GuideAction, val stepNumber: Int) : AgentEvent()
+
+    /** Guide terminó (success o failure path) — overlay se hide en cualquier caso. */
+    data class GuideEnded(val action: com.beto.app.guide.GuideAction) : AgentEvent()
+
+    /** User canceló el guide tocando la burbuja durante un step. */
+    data class GuideCancelled(val action: com.beto.app.guide.GuideAction) : AgentEvent()
+
     /** BetoAccessibilityService o BetoForegroundService onCreate / onServiceConnected. */
     object ServiceStarted : AgentEvent()
 

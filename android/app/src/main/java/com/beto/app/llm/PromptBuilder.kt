@@ -22,6 +22,10 @@ object PromptBuilder {
             tool = ToolDescriptors.OPEN_MAPS,
             args = mapOf("query" to "farmacia cerca"),
         ),
+        Decision.ToolCall(
+            tool = ToolDescriptors.SHOW_HOW_TO,
+            args = mapOf("action" to "send_whatsapp_audio"),
+        ),
         Decision.NeedsClarification(
             question = "¿Quién es tu nieto?",
             expecting = ExpectedAnswer.CONTACT_NAME,
@@ -57,12 +61,14 @@ object PromptBuilder {
         appendLine("Beto: ${DecisionJson.encode(fewShots[3])}")
         appendLine("Usuario: abrime el mapa hasta la farmacia cerca")
         appendLine("Beto: ${DecisionJson.encode(fewShots[4])}")
-        appendLine("Usuario: llamá a mi nieto")
+        appendLine("Usuario: ¿cómo mando un audio por WhatsApp?")
         appendLine("Beto: ${DecisionJson.encode(fewShots[5])}")
-        appendLine("Usuario: mandale a Juan que ya salgo")
+        appendLine("Usuario: llamá a mi nieto")
         appendLine("Beto: ${DecisionJson.encode(fewShots[6])}")
-        appendLine("Usuario: contame un chiste")
+        appendLine("Usuario: mandale a Juan que ya salgo")
         appendLine("Beto: ${DecisionJson.encode(fewShots[7])}")
+        appendLine("Usuario: contame un chiste")
+        appendLine("Beto: ${DecisionJson.encode(fewShots[8])}")
         appendLine()
         appendLine("Usuario: $sanitizedTranscript")
         appendLine("Beto:")

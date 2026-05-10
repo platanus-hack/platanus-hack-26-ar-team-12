@@ -23,6 +23,7 @@ import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
 import com.beto.app.companion.CompanionActivity
 import com.beto.app.contacts.ContactRepository
+import com.beto.app.guide.GuideController
 import com.beto.app.llm.GeminiLlmClient
 import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
@@ -37,8 +38,10 @@ class BetoForegroundService : LifecycleService() {
 
     private var bootGreetingPlayed = false
     private lateinit var actionDispatcher: ActionDispatcher
+    private lateinit var guideController: GuideController
     private val clarificationCaptureActive = AtomicBoolean(false)
     private val handledClarificationTranscripts = Collections.synchronizedSet(mutableSetOf<String>())
+    private val guideActive = AtomicBoolean(false)
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -68,6 +71,7 @@ class BetoForegroundService : LifecycleService() {
             voiceCapture = voiceCapture,
             memory = BetoApplication.userMemoryStore,
         )
+        guideController = GuideController(context = applicationContext)
         actionDispatcher = ActionDispatcher(
             context = this,
             llm = GeminiLlmClient(),
@@ -77,6 +81,7 @@ class BetoForegroundService : LifecycleService() {
             channelClarifier = channelClarifier,
             speaker = speaker,
             phraseGenerator = BetoApplication.phraseGenerator,
+            guideController = guideController,
             scope = lifecycleScope,
         )
 
@@ -103,9 +108,17 @@ class BetoForegroundService : LifecycleService() {
             AgentBus.events.collect { event ->
                 when (event) {
                     is AgentEvent.BubbleTapped -> {
-                        Timber.tag(LogTags.STT).i("Bubble tapped -> voice capture")
-                        AgentBus.command(AgentCommand.StartVoiceCapture(event.startedAtMs))
+                        if (guideActive.get()) {
+                            Timber.tag(LogTags.ACCESSIBILITY).i("Bubble tapped during guide -> cancel guide")
+                            guideController.cancel()
+                        } else {
+                            Timber.tag(LogTags.STT).i("Bubble tapped -> voice capture")
+                            AgentBus.command(AgentCommand.StartVoiceCapture(event.startedAtMs))
+                        }
                     }
+                    is AgentEvent.GuideStarted -> guideActive.set(true)
+                    is AgentEvent.GuideEnded -> guideActive.set(false)
+                    is AgentEvent.GuideCancelled -> guideActive.set(false)
                     is AgentEvent.VoiceCaptured -> {
                         if (
                             clarificationCaptureActive.get() ||

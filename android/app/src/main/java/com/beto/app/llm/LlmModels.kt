@@ -62,6 +62,7 @@ object DecisionJson {
             ToolDescriptors.MAKE_CALL -> setOf("contact")
             ToolDescriptors.SEND_SMS -> setOf("contact", "message")
             ToolDescriptors.OPEN_MAPS -> setOf("query")
+            ToolDescriptors.SHOW_HOW_TO -> setOf("action")
             else -> emptySet()
         }
 }
