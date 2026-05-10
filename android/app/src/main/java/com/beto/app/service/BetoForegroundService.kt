@@ -29,12 +29,14 @@ import com.beto.app.voice.TtsManager
 import com.beto.app.voice.VoiceCaptureActivity
 import kotlinx.coroutines.launch
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 import timber.log.Timber
 
 class BetoForegroundService : LifecycleService() {
 
     private var bootGreetingPlayed = false
     private lateinit var actionDispatcher: ActionDispatcher
+    private val clarificationCaptureActive = AtomicBoolean(false)
     private val handledClarificationTranscripts = Collections.synchronizedSet(mutableSetOf<String>())
 
     override fun onBind(intent: Intent): IBinder? {
@@ -49,7 +51,11 @@ class BetoForegroundService : LifecycleService() {
         startForegroundCorrectly()
         val speaker = TtsSpeaker()
         val contacts = ContactRepository(this)
-        val voiceCapture = AgentBusVoiceCapture(this) { handledClarificationTranscripts.add(it) }
+        val voiceCapture = AgentBusVoiceCapture(
+            onCaptureStarted = { clarificationCaptureActive.set(true) },
+            onCaptured = { handledClarificationTranscripts.add(it) },
+            onCaptureFinished = { clarificationCaptureActive.set(false) },
+        )
         val contactClarifier = ContactClarifier(
             speaker = speaker,
             contacts = contacts,
@@ -94,7 +100,12 @@ class BetoForegroundService : LifecycleService() {
                         AgentBus.command(AgentCommand.StartVoiceCapture(event.startedAtMs))
                     }
                     is AgentEvent.VoiceCaptured -> {
-                        if (handledClarificationTranscripts.remove(event.text)) return@collect
+                        if (
+                            clarificationCaptureActive.get() ||
+                            handledClarificationTranscripts.remove(event.text)
+                        ) {
+                            return@collect
+                        }
                         actionDispatcher.handle(event.text)
                     }
                     is AgentEvent.VoiceCaptureFailed -> {

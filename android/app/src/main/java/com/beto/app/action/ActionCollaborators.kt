@@ -1,6 +1,5 @@
 package com.beto.app.action
 
-import android.content.Context
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
@@ -26,17 +25,23 @@ class TtsSpeaker : Speaker {
 }
 
 class AgentBusVoiceCapture(
-    private val context: Context,
-    private val markHandled: (String) -> Unit = {},
+    private val onCaptureStarted: () -> Unit = {},
+    private val onCaptured: (String) -> Unit = {},
+    private val onCaptureFinished: () -> Unit = {},
 ) : SuspendableVoiceCapture {
     override suspend fun captureOnce(timeoutMs: Long): String? {
+        onCaptureStarted()
         AgentBus.command(AgentCommand.StartVoiceCapture())
-        return withTimeoutOrNull(timeoutMs) {
-            AgentBus.events
-                .filterIsInstance<AgentEvent.VoiceCaptured>()
-                .first()
-                .text
-                .also(markHandled)
+        return try {
+            withTimeoutOrNull(timeoutMs) {
+                AgentBus.events
+                    .filterIsInstance<AgentEvent.VoiceCaptured>()
+                    .first()
+                    .text
+                    .also(onCaptured)
+            }
+        } finally {
+            onCaptureFinished()
         }
     }
 }

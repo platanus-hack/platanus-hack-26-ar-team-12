@@ -52,6 +52,11 @@ class ContactRepository(
             }
     }
 
+    fun knownContactNames(limit: Int = 100): List<String> {
+        if (!hasPermission()) return DemoContacts.all.map { it.canonicalName }
+        return dataSource.listContacts(limit).map { it.displayName }
+    }
+
     private fun demoFallback(name: String): List<ContactInfo> =
         DemoContacts.resolve(name)?.let { listOf(it.toContactInfo()) }.orEmpty()
 
@@ -87,6 +92,7 @@ data class ContactRow(
 
 interface ContactDataSource {
     fun searchByName(name: String): List<ContactRow>
+    fun listContacts(limit: Int): List<ContactRow>
     fun findByPhone(phone: String): ContactRow?
     fun loadPhoneNumbers(contactId: Long): List<PhoneNumber>
     fun hasWhatsApp(contactId: Long): Boolean
@@ -146,6 +152,29 @@ private class AndroidContactDataSource(
             )
         }
     }
+
+    override fun listContacts(limit: Int): List<ContactRow> =
+        contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+            ),
+            null,
+            null,
+            ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+        ).useRows { cursor ->
+            buildList {
+                while (cursor.moveToNext() && size < limit) {
+                    val displayName = cursor.getString(
+                        ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+                    ).orEmpty()
+                    if (displayName.isNotBlank()) {
+                        add(ContactRow(cursor.getLong(ContactsContract.Contacts._ID), displayName))
+                    }
+                }
+            }
+        }
 
     override fun loadPhoneNumbers(contactId: Long): List<PhoneNumber> =
         contentResolver.query(

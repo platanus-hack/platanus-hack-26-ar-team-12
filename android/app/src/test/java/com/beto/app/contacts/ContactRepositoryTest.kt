@@ -95,6 +95,15 @@ class ContactRepositoryTest {
         assertNull(repository.findByPhone("3333"))
     }
 
+    @Test
+    fun knownContactNamesReturnsContactsWhenPermissionGranted() {
+        val repository = repository(
+            contacts = listOf(contact(1, "Juan"), contact(2, "Pedro")),
+        )
+
+        assertEquals(listOf("Juan", "Pedro"), repository.knownContactNames())
+    }
+
     private fun repository(
         permissionGranted: Boolean = true,
         contacts: List<ContactRow> = emptyList(),
@@ -129,6 +138,8 @@ private class FakeContactDataSource(
 
     override fun searchByName(name: String): List<ContactRow> =
         contacts.filter { it.displayName.contains(name, ignoreCase = true) }
+
+    override fun listContacts(limit: Int): List<ContactRow> = contacts.take(limit)
 
     override fun findByPhone(phone: String): ContactRow? = phoneLookup[phone]
 

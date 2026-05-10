@@ -11,6 +11,7 @@ import com.beto.app.memory.UserMemoryStore
 import com.beto.app.util.LogTags
 import kotlinx.coroutines.CoroutineScope
 import timber.log.Timber
+import java.util.Locale
 
 class ActionDispatcher(
     private val context: Context,
@@ -46,7 +47,7 @@ class ActionDispatcher(
                 Timber.tag(LogTags.ACTION).d("DISPATCH_LLM_DECISION tool=%s", routed.call.tool)
                 executeTool(routed.call)
             }
-            is RouteOutcome.Clarify -> handleClarification(routed.decision)
+            is RouteOutcome.Clarify -> handleClarification(routed.decision, transcript)
             RouteOutcome.Unknown -> failDidNotUnderstand()
             else -> Unit
         }
@@ -80,19 +81,35 @@ class ActionDispatcher(
                     failDidNotUnderstand()
                     return
                 }
-                val channel = memory.preferredChannel(contact)
-                    ?: channelClarifier.clarify(contact)
-                    ?: return
+                val channel = if (call.tool == ToolDescriptors.SEND_WHATSAPP) Channel.WHATSAPP else Channel.SMS
                 executeChannel(contact, channel, message)
             }
             else -> failDidNotUnderstand()
         }
     }
 
-    private suspend fun handleClarification(decision: Decision.NeedsClarification) {
+    private suspend fun handleClarification(decision: Decision.NeedsClarification, transcript: String) {
         Timber.tag(LogTags.ACTION).d("DISPATCH_LLM_DECISION clarification=%s", decision.expecting)
-        speaker.speak(decision.question)
-        failDidNotUnderstand()
+        when (decision.expecting) {
+            com.beto.app.llm.ExpectedAnswer.CONTACT_NAME -> {
+                val alias = extractAlias(decision.question, transcript) ?: run {
+                    failDidNotUnderstand()
+                    return
+                }
+                val contact = contactClarifier.clarify(alias) ?: return
+                executeAfterContactClarification(transcript, contact)
+            }
+            com.beto.app.llm.ExpectedAnswer.CHANNEL -> {
+                val contactArg = extractContactArg(transcript) ?: run {
+                    failDidNotUnderstand()
+                    return
+                }
+                val contact = resolveContactOrClarify(contactArg) ?: return
+                val channel = channelClarifier.clarify(contact) ?: return
+                executeChannel(contact, channel, extractMessage(transcript))
+            }
+            com.beto.app.llm.ExpectedAnswer.FREE_TEXT -> failDidNotUnderstand()
+        }
     }
 
     private suspend fun resolveContactOrClarify(contactArg: String): ContactRef? {
@@ -156,4 +173,50 @@ class ActionDispatcher(
         Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=unknown")
         speaker.speak("No te entendí del todo, repetímelo más despacito.")
     }
+
+    private suspend fun executeAfterContactClarification(transcript: String, contact: ContactRef) {
+        val normalized = transcript.lowercase(Locale("es", "AR"))
+        if ("llam" in normalized || "telefon" in normalized) {
+            executeChannel(contact, Channel.CALL, null)
+            return
+        }
+        val message = extractMessage(transcript)
+        if (message.isBlank()) {
+            failDidNotUnderstand()
+            return
+        }
+        val channel = memory.preferredChannel(contact)
+            ?: channelClarifier.clarify(contact)
+            ?: return
+        executeChannel(contact, channel, message)
+    }
+
+    private fun extractAlias(question: String, transcript: String): String? {
+        Regex("tu\\s+([^?]+)", RegexOption.IGNORE_CASE).find(question)?.let {
+            return it.groupValues[1].trim().lowercase(Locale("es", "AR"))
+        }
+        Regex("mi\\s+(\\w+)", RegexOption.IGNORE_CASE).find(transcript)?.let {
+            return it.groupValues[1].trim().lowercase(Locale("es", "AR"))
+        }
+        return null
+    }
+
+    private fun extractContactArg(transcript: String): String? {
+        val normalized = transcript.trim()
+        Regex("\\ba\\s+(.+?)\\s+que\\b", RegexOption.IGNORE_CASE).find(normalized)?.let {
+            return it.groupValues[1].trim()
+        }
+        Regex("\\ba\\s+(.+)$", RegexOption.IGNORE_CASE).find(normalized)?.let {
+            return it.groupValues[1].trim()
+        }
+        return null
+    }
+
+    private fun extractMessage(transcript: String): String =
+        Regex("\\bque\\s+(.+)$", RegexOption.IGNORE_CASE)
+            .find(transcript)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
 }

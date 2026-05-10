@@ -1,6 +1,7 @@
 package com.beto.app.llm
 
 import com.beto.app.util.LogTags
+import com.beto.app.voice.TranscriptCorrectionClient
 import com.google.firebase.Firebase
 import com.google.firebase.ai.GenerativeModel
 import com.google.firebase.ai.ai
@@ -11,7 +12,7 @@ import timber.log.Timber
 class GeminiLlmClient(
     private val cache: LlmCache = LlmCache(),
     private val generateContent: suspend (String) -> String = defaultGenerator(),
-) : LlmClient {
+) : LlmClient, TranscriptCorrectionClient {
 
     override suspend fun interpret(rawTranscript: String): Decision {
         val sanitized = Sanitizer.sanitize(rawTranscript)
@@ -35,7 +36,7 @@ class GeminiLlmClient(
         return decision
     }
 
-    suspend fun correctTranscript(prompt: String): String =
+    override suspend fun correctTranscript(prompt: String): String =
         runCatching { generateContent(prompt) }
             .getOrElse {
                 Timber.tag(LogTags.LLM).w(it, "LLM_STT_CORRECTION_FAILED")

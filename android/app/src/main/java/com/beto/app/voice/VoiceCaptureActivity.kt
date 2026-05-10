@@ -12,6 +12,8 @@ import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentEvent
 import com.beto.app.action.DeterministicMatcher
 import com.beto.app.action.MatchResult
+import com.beto.app.contacts.ContactRepository
+import com.beto.app.llm.GeminiLlmClient
 import com.beto.app.util.LogTags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +28,8 @@ class VoiceCaptureActivity : Activity() {
     private var startedAtMs: Long = 0L
     private var launchedRecognizer = false
     private var recognizer: SpeechRecognizer? = null
-    private val sttCorrector = SttCorrector(NoOpTranscriptCorrectionClient)
+    private val sttCorrector by lazy { SttCorrector(GeminiLlmClient()) }
+    private val contacts by lazy { ContactRepository(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,7 +91,7 @@ class VoiceCaptureActivity : Activity() {
         AgentBus.emit(AgentEvent.SttCorrectionStarted(raw, confidence))
         val corrected = sttCorrector.correct(
             raw = raw,
-            context = SttContext(knownContacts = emptyList(), lastCommand = null),
+            context = SttContext(knownContacts = contacts.knownContactNames(), lastCommand = null),
         )
         Timber.tag(LogTags.STT).i(
             "STT_CORRECTED elapsedMs=%d changed=%s",

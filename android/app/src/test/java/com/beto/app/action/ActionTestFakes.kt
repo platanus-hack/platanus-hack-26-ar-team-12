@@ -32,6 +32,8 @@ internal fun fakeContactRepository(
             override fun searchByName(name: String): List<ContactRow> =
                 contacts.filter { it.displayName.contains(name, ignoreCase = true) }
 
+            override fun listContacts(limit: Int): List<ContactRow> = contacts.take(limit)
+
             override fun findByPhone(phone: String): ContactRow? = null
 
             override fun loadPhoneNumbers(contactId: Long): List<PhoneNumber> =

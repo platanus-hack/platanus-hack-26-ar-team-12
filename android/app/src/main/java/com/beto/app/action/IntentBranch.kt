@@ -1,8 +1,13 @@
 package com.beto.app.action
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.beto.app.memory.ContactRef
 import com.beto.app.util.LogTags
 import timber.log.Timber
@@ -57,6 +62,19 @@ object IntentBranch {
     }
 
     fun makeCall(context: Context, phoneE164: String): ActionResult {
+        if (
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            if (context is Activity) {
+                ActivityCompat.requestPermissions(
+                    context,
+                    arrayOf(Manifest.permission.CALL_PHONE),
+                    CALL_PERMISSION_REQUEST,
+                )
+            }
+            return ActionResult.Failed("missing_call_permission")
+        }
         val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$phoneE164"))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return tryStart(context, intent, "make_call")
@@ -88,4 +106,6 @@ object IntentBranch {
 
     private fun encodeForWaMe(message: String): String =
         URLEncoder.encode(message, Charsets.UTF_8.name()).replace("+", "%20")
+
+    private const val CALL_PERMISSION_REQUEST = 301
 }
