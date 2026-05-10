@@ -13,7 +13,11 @@ import androidx.lifecycle.lifecycleScope
 import com.beto.app.BetoApplication
 import com.beto.app.MainActivity
 import com.beto.app.R
-import com.beto.app.action.PlanCController
+import com.beto.app.actions.ContactsResolver
+import com.beto.app.actions.IntentActionExecutor
+import com.beto.app.actions.VoiceCommandController
+import com.beto.app.llm.LLMRouter
+import com.beto.app.llm.OfflineIntentClassifier
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentCommand
 import com.beto.app.bus.AgentEvent
@@ -21,13 +25,15 @@ import com.beto.app.overlay.OverlayManager
 import com.beto.app.util.LogTags
 import com.beto.app.voice.TtsManager
 import com.beto.app.voice.VoiceCaptureActivity
+import com.beto.app.voice.WakeWordDetector
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class BetoForegroundService : LifecycleService() {
 
     private var bootGreetingPlayed = false
-    private lateinit var planCController: PlanCController
+    private lateinit var voiceCommandController: VoiceCommandController
+    private lateinit var wakeWordDetector: WakeWordDetector
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -39,11 +45,22 @@ class BetoForegroundService : LifecycleService() {
         Timber.tag(LogTags.TTS).i("BetoForegroundService.onCreate")
         BetoApplication.ensureNotificationChannel(this)
         startForegroundCorrectly()
-        planCController = PlanCController(
-            context = this,
+
+        val contactsResolver = ContactsResolver(this)
+        val actionExecutor = IntentActionExecutor(this, contactsResolver)
+        val classifier = OfflineIntentClassifier()
+        val llmRouter = LLMRouter()
+
+        voiceCommandController = VoiceCommandController(
             scope = lifecycleScope,
             sendCommand = AgentBus::command,
+            classifier = classifier,
+            llmRouter = llmRouter,
+            contactsResolver = contactsResolver,
+            actionExecutor = actionExecutor
         )
+
+        wakeWordDetector = WakeWordDetector(this)
 
         lifecycleScope.launch {
             AgentBus.commands.collect { command ->
@@ -53,6 +70,7 @@ class BetoForegroundService : LifecycleService() {
                         TtsManager.speak(command.text)
                     }
                     is AgentCommand.StartVoiceCapture -> {
+                        wakeWordDetector.stopListening()
                         startActivity(VoiceCaptureActivity.startIntent(this@BetoForegroundService, command.startedAtMs))
                     }
                 }
@@ -63,14 +81,17 @@ class BetoForegroundService : LifecycleService() {
             AgentBus.events.collect { event ->
                 when (event) {
                     is AgentEvent.BubbleTapped -> {
-                        Timber.tag(LogTags.STT).i("Bubble tapped -> voice capture")
-                        planCController.startVoiceCapture(event.startedAtMs)
+                        Timber.tag(LogTags.STT).i("Bubble tapped or WakeWord detected -> voice capture")
+                        lifecycleScope.launch { AgentBus.command(AgentCommand.StartVoiceCapture(event.startedAtMs)) }
                     }
                     is AgentEvent.VoiceCaptured -> {
-                        planCController.onVoiceCaptured(event.text, event.elapsedMs)
+                        voiceCommandController.onVoiceCaptured(event.text)
+                        wakeWordDetector.startListening()
                     }
                     is AgentEvent.VoiceCaptureFailed -> {
-                        planCController.onVoiceCaptureFailed(event.reason, event.elapsedMs)
+                        Timber.tag(LogTags.STT).w("Voice capture failed: %s", event.reason)
+                        TtsManager.speak("No te escuché bien. Probemos de nuevo, dale.")
+                        wakeWordDetector.startListening()
                     }
                     is AgentEvent.BubbleLongPressed -> {
                         Timber.tag(LogTags.TTS).i("Bubble long-pressed -> stopping Beto")
@@ -85,6 +106,7 @@ class BetoForegroundService : LifecycleService() {
             }
         }
 
+        wakeWordDetector.startListening()
         lifecycleScope.launch { AgentBus.emit(AgentEvent.ServiceStarted) }
     }
 
@@ -154,6 +176,7 @@ class BetoForegroundService : LifecycleService() {
 
     override fun onDestroy() {
         Timber.tag(LogTags.TTS).i("BetoForegroundService.onDestroy")
+        wakeWordDetector.stopListening()
         OverlayManager.hide(this)
         lifecycleScope.launch { AgentBus.emit(AgentEvent.ServiceStopped) }
         super.onDestroy()
