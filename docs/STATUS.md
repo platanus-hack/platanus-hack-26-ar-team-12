@@ -2,7 +2,7 @@
 
 **Fecha:** 9 de mayo de 2026
 **Proyecto:** Beto (Platanus Hack 26 - Vertical AI)
-**Estado Global:** ✅ Vertical Slice Plan C Operativa (offline) / 🛠️ Listo para Integración LLM (Phase 3)
+**Estado Global:** ✅ Phase 3 Completa (Cerebro IA + Memoria + Multi-canal) / 🚀 Lista para Phase 4 (Voz Neural + UX Senior)
 
 ---
 
@@ -11,16 +11,18 @@
 Beto es un acompañante digital diseñado especialmente para que las personas mayores puedan usar su celular sin complicaciones. En lugar de navegar por menús difíciles, Beto permite que el usuario dé órdenes con su voz (en español argentino), y él se encarga de hacer las cosas por ellos.
 
 ### 🌟 ¿Qué puede hacer hoy?
-Ya no son solo cimientos: Beto entiende y actúa sobre un comando real **completamente offline**.
+Beto tiene el cerebro completo: entiende comandos complejos en español argentino, aprende de cada interacción y elige el canal correcto para comunicarse.
 
 - **La Burbuja de Beto:** Aparece una burbuja flotante sobre cualquier app. Se arrastra con el dedo y queda magnetizada al borde. Al tocarla, dispara la captura de voz.
-- **Te Escucha en Argentino:** Tras tocar la burbuja, Beto abre el reconocedor de voz nativo de Android en `es-AR` y devuelve el transcript final en menos de 3 segundos (medido vía marcador `PLAN_C_STT_RESULT elapsedMs=...`).
-- **Te Manda el WhatsApp:** Si decís *"mandale a mi nieto que ya llegué"*, Beto reconoce la intención sin LLM, resuelve el contacto demo "Mi nieto" y abre WhatsApp con el mensaje pre-llenado al número correcto.
-- **Te Habla con Calidez:** Beto confirma antes de actuar (*"Abro WhatsApp con el mensaje para tu nieto."*), reporta éxito (*"Listo, te dejé el mensaje preparado."*) y falla con frases cálidas si algo no sale.
+- **Te Escucha en Argentino:** Tras tocar la burbuja, Beto abre el reconocedor de voz nativo de Android en `es-AR` y devuelve el transcript final en menos de 3 segundos.
+- **Entiende Comandos Complejos con IA:** Para todo lo que no sea el guion garantizado, Beto le pregunta a Gemini 2.5 Flash con tool calling estructurado. Entiende intenciones como *"llamá a mi médica"* o *"mandá un mensaje a Juan"*.
+- **Te Manda el WhatsApp (Garantizado):** Si decís *"mandale a mi nieto que ya llegué"*, Beto reconoce la intención **sin LLM** (Plan C offline), resuelve el contacto y abre WhatsApp con el mensaje pre-llenado. Funciona en avión.
+- **Aprende Quién es Quién:** Si Beto no sabe a quién te referís con "mi médica", te pregunta una sola vez (`¿Quién es tu médica?`), resuelve el contacto de la agenda real y lo recuerda para siempre en memoria cifrada.
+- **Elige el Canal por Vos:** Si no sabe si mandarte por WhatsApp, SMS o llamada, te pregunta una sola vez y guarda tu preferencia por contacto.
+- **Maneja Homónimos:** Si hay varios "Carlos" en tu agenda, Beto pregunta cuál en vez de adivinar.
+- **Te Habla con Calidez:** Confirma antes de actuar, reporta éxito y falla con frases cálidas. Si no entiende, dice *"No te entendí del todo, repetímelo más despacito."* en vez de crashear.
 - **Sabe Pedir Permiso:** Al iniciar te lleva de la mano a configurar overlay y accesibilidad si faltan.
-- **Siempre Atento:** Corre como Foreground Service con notificación persistente para no morir en background.
-
-> **Importante:** El flujo actual es **Plan C offline**. No hay LLM, no hay red, no hay auto-send. Es la base confiable para la demo, sobre la cual se montará la inteligencia conversacional en Phase 3.
+- **Siempre Atento:** Corre como Foreground Service con notificación persistente.
 
 ---
 
@@ -29,58 +31,46 @@ Ya no son solo cimientos: Beto entiende y actúa sobre un comando real **complet
 Beto utiliza una arquitectura desacoplada basada en eventos, optimizada para reactividad y robustez en servicios de fondo de Android.
 
 ### 1. Sistema Nervioso: `AgentBus`
-El corazón de la comunicación es el `AgentBus`, un bus de eventos reactivo basado en **Kotlin SharedFlow**. Permite que servicios, UI, captura de voz y motor de acciones se comuniquen sin acoplamiento directo.
-- **`AgentEvent`**: Hechos que ya ocurrieron (ej: `BubbleTapped`, `VoiceCaptured(text)`, `ActionExecuted`, `ToolFailed`).
+El corazón de la comunicación es el `AgentBus`, un bus de eventos reactivo basado en **Kotlin SharedFlow**.
+- **`AgentEvent`**: Hechos que ya ocurrieron (ej: `BubbleTapped`, `VoiceCaptured(text)`, `ActionExecuted`).
 - **`AgentCommand`**: Instrucciones (ej: `Speak`, `StartListening`).
 
 ### 2. Componentes Core (Servicios)
-- **`BetoForegroundService`**: Gestiona el ciclo de vida del agente. Mantiene el proceso vivo con notificación persistente y coordina la salida de audio (TTS).
-- **`BetoAccessibilityService`**: Los "ojos" de Beto. Registrado para leer pantalla y ejecutar gestos de forma autónoma (uso completo llega en Phase 4).
-- **`OverlayManager`**: Controla la `OverlayBubble`, una interfaz tipo `SYSTEM_ALERT_WINDOW` que permite la interacción desde cualquier app.
+- **`BetoForegroundService`**: Gestiona el ciclo de vida, la notificación persistente y coordina la salida de audio (TTS).
+- **`BetoAccessibilityService`**: Los "ojos" de Beto. Registrado para leer pantalla y ejecutar gestos de forma autónoma.
+- **`OverlayManager`**: Controla la `OverlayBubble` (`SYSTEM_ALERT_WINDOW`).
 
-### 3. Captura de Voz
-- **`VoiceCaptureActivity`**: Activity transparente que hostea el recognizer nativo de Android (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`) en `es-AR`. Emite el transcript final al `AgentBus` y se autodestruye.
-- **`TtsManager`**: Envoltorio sobre el TTS nativo de Android, configurado para `es-AR` (con fallback a `es-ES` si la voz argentina no está disponible).
+### 3. Cerebro IA (Phase 3 — Completo)
+- **`GeminiLlmClient`**: Integración con Gemini 2.5 Flash vía Firebase AI Logic. Tool calling estructurado, caché de decisiones, sanitizador on-device (DNI/teléfono/tarjeta) y retry automático ante JSON malformado.
+- **`ActionRouter`**: Enruta cada transcript hacia Plan C (offline) o hacia el LLM según el `DeterministicMatcher`. Separa routing de ejecución.
+- **`ActionDispatcher`**: Orquesta el flujo completo: Plan C → LLM → clarificación de contacto/canal → ejecución del Intent. Manejo de errores con fallback cálido.
+- **`ChannelClarifier`**: Pregunta por voz `¿Por WhatsApp, SMS o llamada?` y persiste la elección. Hasta 3 intentos con mensajes de reintento amables.
+- **`ContactClarifier`**: Pregunta `¿Quién es tu X?`, resuelve contra la agenda real, maneja homónimos con un menú de selección por voz y persiste el alias.
 
-### 4. Motor de Acciones (Plan C Offline)
-- **`PlanCController`**: Orquesta el flujo `VoiceCaptured → match → confirmación TTS → Intent → reporte`. Implementa el retry cálido, la aclaración corta para mensaje/contacto faltantes y los marcadores de log estables.
-- **`DeterministicMatcher`**: Reconoce la familia de comandos del guion (variantes de *mandale/avisale/decile a mi nieto que…*). Normaliza tildes, puntuación y filler words. **No** intenta lenguaje natural arbitrario.
-- **`DemoContacts`**: Alias map hardcodeado (`nieto`, `mi nieto`, nombre real) → número E.164 del contacto demo.
-- **`IntentBranch`**: Dispara el Intent estricto a `com.whatsapp` con `wa.me/PHONE?text=...`. No auto-envía. WhatsApp Business queda fuera de Phase 2.
+### 4. Memoria y Aprendizaje (Phase 3 — Completo)
+- **`UserMemory`**: Modelo de datos serializable con alias de contactos, preferencias de canal por contacto y perfil de hechos del usuario.
+- **`UserMemoryStore`**: Persistencia en `EncryptedSharedPreferences` + JSON (`kotlinx.serialization`). API suspendida con mutex para acceso concurrente seguro.
+- **Aprendizaje Multi-canal**: Beto aprende alias y canal preferido de cada contacto, nunca repregunta lo mismo dos veces.
 
-### 5. LLM (preparado, no activo)
-- **`ToolDescriptors`**: Definición de las "herramientas" (`send_whatsapp`, `make_call`, `open_maps`, etc.) que el LLM podrá invocar en Phase 3. Hoy son contrato/stub; el cliente Gemini se conecta en la próxima fase.
+### 5. Acceso a Contactos (Phase 3 — Completo)
+- **`ContactRepository`**: Búsqueda por nombre en la agenda real del dispositivo (`ContactsContract`). Detecta si el contacto tiene WhatsApp. Fallback demo cuando falta permiso `READ_CONTACTS`.
+- **Normalización de teléfonos**: Conversión a E.164 para comparación robusta.
 
 ---
 
-## 📁 Estructura del Proyecto y Archivos
+## 📁 Estructura del Proyecto
 
 ```text
 android/app/src/main/java/com/beto/app/
-├── action/
-│   ├── DemoContacts.kt          <-- Alias map hardcodeado del contacto demo "Mi nieto".
-│   ├── DeterministicMatcher.kt  <-- Reconocimiento offline de la familia de comandos del guion.
-│   ├── IntentBranch.kt          <-- Disparador del Intent estricto a com.whatsapp.
-│   └── PlanCController.kt       <-- Orquestador del flujo voz → matcher → Intent → TTS.
-├── bus/
-│   ├── AgentBus.kt              <-- Bus de eventos (SharedFlow).
-│   └── AgentEvents.kt           <-- Eventos y comandos del sistema.
-├── llm/
-│   └── ToolDescriptors.kt       <-- Contrato de herramientas para el LLM (activo en Phase 3).
-├── overlay/
-│   ├── OverlayBubble.kt         <-- Burbuja flotante (drag, tap, magnet a borde).
-│   └── OverlayManager.kt        <-- Gestión de la ventana del sistema.
-├── service/
-│   ├── BetoForegroundService.kt    <-- Servicio principal de fondo y gestión de TTS.
-│   └── BetoAccessibilityService.kt <-- Servicio de accesibilidad (lectura de pantalla).
-├── voice/
-│   ├── TtsManager.kt            <-- Motor TTS nativo en es-AR.
-│   └── VoiceCaptureActivity.kt  <-- Activity transparente para captura STT en es-AR.
-├── util/
-│   ├── LogTags.kt               <-- Tags Timber centralizados (Beto-TTS, Beto-Action, etc.).
-│   └── PreflightCheck.kt        <-- Validación de permisos críticos antes de arrancar.
-├── BetoApplication.kt           <-- Inicialización de logs, canales de notificación y TTS.
-└── MainActivity.kt              <-- Pantalla de configuración inicial y bienvenida.
+├── action/           <-- Motor de acciones (Router, Dispatcher, Clarifiers, Intents).
+├── bus/              <-- Sistema nervioso (AgentBus, Eventos).
+├── contacts/         <-- Acceso a agenda real del dispositivo (ContactRepository).
+├── llm/              <-- Cerebro IA (GeminiLlmClient, PromptBuilder, Sanitizer, Cache).
+├── memory/           <-- Persistencia cifrada de perfil y preferencias (UserMemory).
+├── overlay/          <-- Interfaz flotante (Burbuja, Drag & Drop).
+├── service/          <-- Servicios core (Foreground, Accessibility).
+├── voice/            <-- Audio (TTS nativo/neural, STT Activity, Corrección).
+└── util/             <-- Logs, Permisos, LogTags.
 ```
 
 ---
@@ -88,39 +78,43 @@ android/app/src/main/java/com/beto/app/
 ## ✅ Hitos Alcanzados
 
 ### Phase 1 — Foundation & Sync de Hora 0
-- [x] Infraestructura de comunicación (`AgentBus` + `AgentEvents`).
-- [x] Interfaz flotante interactiva (`OverlayBubble` con drag + magnet + tap/long-press).
-- [x] Foreground Service con notificación persistente.
-- [x] Motor de voz local (`TtsManager`) funcionando en es-AR.
+- [x] Infraestructura de comunicación (`AgentBus`).
+- [x] Interfaz flotante interactiva (`OverlayBubble`).
+- [x] Motor de voz local (`TtsManager`) en es-AR.
 - [x] Flujo de permisos automatizado (`PreflightCheck`).
-- [x] Logs estructurados (Timber) con tags consistentes.
 
 ### Phase 2 — Vertical Slice Mínimo (Plan C Offline)
-- [x] `VoiceCaptureActivity` capturando voz en es-AR vía recognizer nativo.
-- [x] `DeterministicMatcher` reconociendo la familia de comandos del guion sin LLM.
-- [x] `DemoContacts` con contacto demo "Mi nieto" y aliases.
-- [x] `IntentBranch` abriendo WhatsApp regular (`com.whatsapp`) con mensaje pre-llenado.
-- [x] `PlanCController` orquestando confirmación, retry cálido y aclaración corta.
-- [x] Marcadores de log estables: `PLAN_C_STT_START`, `PLAN_C_STT_RESULT elapsedMs=...`, `PLAN_C_MATCHED`, `PLAN_C_WHATSAPP_LAUNCHED`, `PLAN_C_WHATSAPP_FAILED`.
-- [x] Verificación: `./gradlew testDebugUnitTest` y `./gradlew assembleDebug` pasan.
-- [x] APK debug generado (~13 MB) listo para smoke test físico.
-- [ ] **Pendiente:** smoke test físico en el teléfono de demo (ver `02-DEMO-CHECK.md`).
+- [x] `VoiceCaptureActivity` capturando voz en es-AR.
+- [x] `DeterministicMatcher` reconociendo comandos del guion sin internet.
+- [x] `IntentBranch` abriendo WhatsApp con mensaje pre-llenado.
+- [x] Marcadores de log estables para diagnóstico de performance.
+- [x] Tests unitarios pasando.
+
+### Phase 3 — Cerebro IA + Memoria + Multi-canal
+- [x] **`GeminiLlmClient`** (03-01): Integración con Gemini 2.5 Flash, tool calling, caché, sanitizador on-device, retry ante JSON inválido.
+- [x] **Corrección STT** (03-02): `TranscriptCorrectionClient` que limpia el transcript vía LLM antes de interpretar.
+- [x] **`ContactRepository`** (03-03): Acceso a agenda real del dispositivo, búsqueda por nombre, detección de WhatsApp, fallback demo.
+- [x] **`UserMemory` + `UserMemoryStore`** (03-04): Persistencia cifrada de alias, preferencias de canal y perfil. Tests unitarios completos.
+- [x] **`ActionRouter` + `ActionDispatcher`** (03-05): Router Plan C → LLM, orquestador del flujo completo con `ChannelClarifier`, `ContactClarifier` y manejo de homónimos.
+- [x] **Hardening de routing** (audit-fix): Robustecimiento de llamadas telefónicas y canal multi en `ActionDispatcher`.
+- [x] **Checklist de demo** (`docs/03-DEMO-CHECK.md`): 7 escenarios verificables en el teléfono de demo.
 
 ---
 
-## 🚀 Próximos Pasos
+## 🚀 Próximos Pasos (Roadmap Reframed)
 
-### Phase 3 — Motor de Acciones Completo + Compañero (próxima)
-1. **Conectar Gemini 2.5 Flash** vía Firebase AI Logic SDK con tool calling sobre `ToolDescriptors`.
-2. **Sumar Intents** restantes: llamadas, SMS, Maps (los 4 caminos confiables completos).
-3. **Sanitizer on-device** (regex DNI/teléfono/tarjeta) antes de cualquier payload al LLM.
-4. **Modo Compañero**: long-press abre sheet de chat cálido (Compose).
-5. **Fallback offline**: si la red cae, volver al matcher determinista de Phase 2 sin que el usuario lo note.
+### Phase 4 — Voz humana + UX Senior + Modo Guía (Actual)
+- **Voz Neural**: Beto suena humano, no robótico.
+- **Modo Compañero**: Chat conversacional cálido (Compose sheet).
+- **Modo Guía**: Beto dibuja flechas sobre la pantalla para enseñar a usar otras apps.
+- Plan elaborado y UI-SPEC disponibles en `.planning/phases/04-*/`.
 
-### Phase 4 — Loop Agéntico + UX Senior
-- Loop agéntico silencioso usando `BetoAccessibilityService` cuando un Intent fijo falla.
-- Estados visuales de la burbuja (idle/listening/thinking/speaking/error).
-- Tipografía ≥22sp con contraste alto en toda la UI propia.
+### Phase 5 — Anti-fraude Reactivo
+- Tool de análisis de estafas: *"Beto, ¿esto es un engaño?"*. Beto analiza y explica simple.
 
-### Phase 5 — Demo Readiness
-- Freeze APK 4+ horas antes, hot-spare phone, hotspot dedicado, ensayos 5x, video respaldo, submission.
+### Phase 6 — Activación Rápida (Opcional)
+- Activación por botón de volumen o Wake Word ("Hola Beto").
+
+### Phase 7 — Demo Readiness
+- Freeze APK, checklist físico de 16 ítems, video de respaldo y submission final.
+

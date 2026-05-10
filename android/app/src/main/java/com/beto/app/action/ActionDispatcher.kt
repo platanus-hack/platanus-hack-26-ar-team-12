@@ -1,0 +1,423 @@
+package com.beto.app.action
+
+import android.content.Context
+import com.beto.app.companion.ChatHistoryHolder
+import com.beto.app.companion.CompanionChatClient
+import com.beto.app.companion.CompanionMessage
+import com.beto.app.companion.Role
+import com.beto.app.contacts.ContactRepository
+import com.beto.app.guide.GuideAction
+import com.beto.app.guide.GuideController
+import com.beto.app.llm.Decision
+import com.beto.app.llm.LlmClient
+import com.beto.app.llm.ToolDescriptors
+import com.beto.app.memory.Channel
+import com.beto.app.memory.ContactRef
+import com.beto.app.memory.UserMemoryStore
+import com.beto.app.util.LogTags
+import com.beto.app.voice.PhraseFallbacks
+import com.beto.app.voice.PhraseGenerator
+import com.beto.app.voice.PhraseIntent
+import com.beto.app.voice.PhraseParams
+import kotlinx.coroutines.CoroutineScope
+import timber.log.Timber
+import java.util.Locale
+
+class ActionDispatcher(
+    private val context: Context,
+    private val llm: LlmClient,
+    private val memory: UserMemoryStore,
+    private val contacts: ContactRepository,
+    private val contactClarifier: ContactClarifier,
+    private val channelClarifier: ChannelClarifier,
+    private val speaker: Speaker,
+    private val phraseGenerator: PhraseGenerator? = null,
+    private val guideController: GuideController? = null,
+    private val companionChat: CompanionChatClient? = null,
+    private val sendWhatsapp: (Context, DemoContact, String) -> ActionResult = IntentBranch::sendWhatsapp,
+    private val scope: CoroutineScope? = null,
+) {
+
+    /**
+     * Genera una frase via LLM si hay PhraseGenerator inyectado, sino usa el fallback hardcoded.
+     * Mantenemos compatibilidad hacia atrás (tests sin PhraseGenerator siguen funcionando).
+     */
+    private suspend fun phrase(intent: PhraseIntent, params: PhraseParams = PhraseParams.empty()): String =
+        phraseGenerator?.forIntent(intent, params) ?: PhraseFallbacks.forIntent(intent, params)
+
+    /**
+     * Punto de entrada ÚNICO del agente Beto. La burbuja flotante y el chat dispatchean
+     * exactamente igual — Beto es UN agente, no dos. La única diferencia entre los dos
+     * canales es la UI:
+     *   - Burbuja → solo entrada por voz.
+     *   - Ventana → voz + texto.
+     *
+     * Flow:
+     *   1) Matcher determinista (PlanC) — para los comandos canónicos del demo.
+     *   2) LLM `interpret` — devuelve tool_call, clarification, o unknown.
+     *   3) Si nada agarra → respuesta conversacional warm con la persona Beto
+     *      (NUNCA el cortante "no te entendí" — eso violaba la unificación).
+     */
+    suspend fun handle(transcript: String) {
+        Timber.tag(LogTags.ACTION).d("DISPATCH_START transcript=%s", transcript.take(80))
+        when (val routed = ActionRouter.routeTranscript(transcript)) {
+            is RouteOutcome.PlanC -> {
+                Timber.tag(LogTags.ACTION).d("DISPATCH_PLANC_HIT")
+                executePlanC(routed.match)
+            }
+            is RouteOutcome.NeedsLlm -> executeLlmRoute(routed.transcript)
+            else -> Unit
+        }
+    }
+
+    private suspend fun executeLlmRoute(transcript: String) {
+        val decision = runCatching { llm.interpret(transcript) }
+            .getOrElse {
+                Timber.tag(LogTags.ACTION).w(it, "DISPATCH_FAILED reason=llm_error")
+                Decision.Unknown
+            }
+        when (val routed = ActionRouter.routeDecision(decision)) {
+            is RouteOutcome.ExecuteTool -> {
+                Timber.tag(LogTags.ACTION).d("DISPATCH_LLM_DECISION tool=%s", routed.call.tool)
+                executeTool(routed.call, transcript)
+            }
+            is RouteOutcome.Clarify -> handleClarification(routed.decision, transcript)
+            RouteOutcome.Unknown -> respondAsBeto(transcript)
+            else -> Unit
+        }
+    }
+
+    /**
+     * Beto responde como persona cuando no hay tool aplicable. SIEMPRE — sea bubble o chat.
+     * Si hay history de chat, lo usamos para contextualizar; sino, respondemos al transcript
+     * actual como si fuera el primer mensaje. Garantía: nunca decimos "no te entendí" cortante.
+     */
+    private suspend fun respondAsBeto(transcript: String) {
+        val client = companionChat
+        Timber.tag(LogTags.ACTION).d("DISPATCH_FALLBACK_PERSONA transcript=%s", transcript.take(50))
+
+        // Si NO tenemos cliente conversacional disponible, usamos la frase warm canned
+        // (nunca dejamos al user en silencio).
+        if (client == null) {
+            speaker.speak(phrase(PhraseIntent.UNKNOWN_COMMAND))
+            return
+        }
+
+        // Construimos history: si el chat estuvo abierto y tiene mensajes, usamos eso.
+        // Si no (caso bubble puro), creamos un history mínimo con el transcript actual
+        // para que el LLM tenga al menos el último input.
+        val existing = ChatHistoryHolder.current()
+        val history = if (existing.isNotEmpty()) {
+            existing
+        } else {
+            listOf(CompanionMessage(role = Role.USER, text = transcript))
+        }
+
+        val reply = runCatching { client.chat(history) }
+            .getOrElse {
+                Timber.tag(LogTags.ACTION).w(it, "PERSONA_FALLBACK_FAILED")
+                ""
+            }
+            .ifBlank { "Estoy acá. Contame un poco más." }
+        speaker.speak(reply)
+    }
+
+    private suspend fun executePlanC(match: MatchResult.Matched) {
+        val contactName = match.contact.canonicalName
+        speaker.speak(phrase(PhraseIntent.CONFIRM_WHATSAPP, PhraseParams.forContact(contactName)))
+        when (val result = sendWhatsapp(context, match.contact, match.message)) {
+            ActionResult.Launched -> {
+                Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=send_whatsapp")
+                speaker.speak(phrase(PhraseIntent.SUCCESS_WHATSAPP, PhraseParams.forContact(contactName)))
+            }
+            is ActionResult.Failed -> {
+                Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
+            }
+        }
+    }
+
+    private suspend fun executeTool(call: Decision.ToolCall, transcript: String) {
+        when (call.tool) {
+            ToolDescriptors.OPEN_MAPS -> executeMaps(call.args["query"].orEmpty())
+            ToolDescriptors.SHOW_HOW_TO -> executeShowHowTo(call.args["action"].orEmpty())
+            ToolDescriptors.MAKE_CALL -> {
+                val contact = resolveContactOrClarify(call.args["contact"].orEmpty()) ?: return
+                executeChannel(contact, Channel.CALL, null)
+            }
+            ToolDescriptors.SEND_SMS, ToolDescriptors.SEND_WHATSAPP -> {
+                val contact = resolveContactOrClarify(
+                    call.args["contact"].orEmpty(),
+                    preferWhatsApp = call.tool == ToolDescriptors.SEND_WHATSAPP,
+                ) ?: return
+                val message = call.args["message"].orEmpty()
+                if (message.isBlank()) {
+                    // Recovery: si el user dijo "llamá a X por WhatsApp", el LLM elige
+                    // SEND_WHATSAPP por la palabra "WhatsApp" pero la INTENCIÓN era llamar.
+                    // Detectamos verbo de llamada en el transcript y reinterpretamos.
+                    if (ActionIntentHeuristics.requestsCall(transcript)) {
+                        Timber.tag(LogTags.ACTION).d(
+                            "DISPATCH_REINTERPRET tool=%s -> make_call (verb 'llamar' in transcript)",
+                            call.tool,
+                        )
+                        executeChannel(contact, Channel.CALL, null)
+                        return
+                    }
+                    // No hay mensaje y no es llamada — respondemos como Beto persona en
+                    // vez del cortante "no te entendí". Damos contexto de qué falta.
+                    Timber.tag(LogTags.ACTION).d("DISPATCH_FALLBACK no_message tool=%s", call.tool)
+                    respondAsBeto(transcript)
+                    return
+                }
+                val channel = explicitChannelFromTranscript(transcript)
+                    ?: memory.preferredChannel(contact)
+                    ?: channelClarifier.clarify(contact)
+                    ?: return
+                executeChannel(contact, channel, message)
+            }
+            else -> failDidNotUnderstand()
+        }
+    }
+
+    private suspend fun handleClarification(decision: Decision.NeedsClarification, transcript: String) {
+        Timber.tag(LogTags.ACTION).d("DISPATCH_LLM_DECISION clarification=%s", decision.expecting)
+        when (decision.expecting) {
+            com.beto.app.llm.ExpectedAnswer.CONTACT_NAME -> {
+                val alias = extractAlias(decision.question, transcript) ?: run {
+                    failDidNotUnderstand()
+                    return
+                }
+                // Red defensiva: si el LLM pidió clarificar pero el alias YA resuelve a UN
+                // único contacto en la agenda, usémoslo directo. Cubre el caso "Fran Iturain"
+                // donde el modelo a veces sobre-clarifica nombres con apellido.
+                val direct = resolveAliasDirectly(alias, transcript)
+                if (direct != null) {
+                    Timber.tag(LogTags.ACTION).d(
+                        "DISPATCH_CLARIFY_BYPASS alias=%s -> %s (LLM over-asked)",
+                        alias,
+                        direct.displayName,
+                    )
+                    executeAfterContactClarification(transcript, direct)
+                    return
+                }
+                val contact = contactClarifier.clarify(alias) ?: return
+                executeAfterContactClarification(transcript, contact)
+            }
+            com.beto.app.llm.ExpectedAnswer.CHANNEL -> {
+                val contactArg = extractContactArg(transcript) ?: run {
+                    failDidNotUnderstand()
+                    return
+                }
+                val contact = resolveContactOrClarify(contactArg) ?: return
+                val channel = channelClarifier.clarify(contact) ?: return
+                executeChannel(contact, channel, extractMessage(transcript))
+            }
+            com.beto.app.llm.ExpectedAnswer.FREE_TEXT -> failDidNotUnderstand()
+        }
+    }
+
+    /**
+     * Intenta resolver un alias a UN contacto único sin lanzar el clarifier.
+     * Devuelve null si el alias resuelve a 0 o 2+ contactos — en esos casos no hay
+     * dudas legítimas y el clarifier sigue siendo el camino correcto.
+     *
+     * También chequea memory.resolveAlias por si el user ya eligió alguien para ese
+     * alias en una sesión previa.
+     */
+    private fun resolveAliasDirectly(alias: String, transcript: String): ContactRef? {
+        val trimmed = alias.trim()
+        if (trimmed.isEmpty()) return null
+        memory.resolveAlias(trimmed)?.let { return it }
+        // Heurística: si el alias parece un nombre propio (al menos una palabra capitalizable
+        // o multi-palabra como "fran iturain"), buscamos en la agenda. Si hay match único, listo.
+        val matches = contacts.resolve(trimmed)
+        if (matches.size == 1) return matches.single().toContactRef()
+        // Caso extra: el LLM pudo extraer "fran iturain" pero el user dijo "llamá a Fran Iturain"
+        // — probemos también la versión exacta del transcript por si normalize() perdió algo.
+        if (trimmed.contains(" ")) {
+            val fromTranscript = contacts.resolve(transcript.trim())
+            if (fromTranscript.size == 1) return fromTranscript.single().toContactRef()
+        }
+        return null
+    }
+
+    private suspend fun resolveContactOrClarify(
+        contactArg: String,
+        preferWhatsApp: Boolean = false,
+    ): ContactRef? {
+        val normalized = contactArg.trim()
+        if (normalized.isBlank()) {
+            Timber.tag(LogTags.ACTION).w("CONTACT_RESOLVE empty arg")
+            failDidNotUnderstand()
+            return null
+        }
+
+        memory.resolveAlias(normalized)?.let {
+            Timber.tag(LogTags.ACTION).d("CONTACT_RESOLVE alias_hit arg=%s -> %s", normalized, it.displayName)
+            return it
+        }
+        val matches = if (preferWhatsApp) {
+            contacts.resolveWhatsAppFirst(normalized)
+        } else {
+            contacts.resolve(normalized)
+        }
+        Timber.tag(LogTags.ACTION).d(
+            "CONTACT_RESOLVE arg=%s matches=%d preferWhatsApp=%s",
+            normalized, matches.size, preferWhatsApp,
+        )
+        return when (matches.size) {
+            1 -> matches.single().toContactRef()
+            0 -> contactClarifier.clarify(normalized)
+            else -> contactClarifier.clarify(normalized)
+        }
+    }
+
+    private suspend fun executeChannel(contact: ContactRef, channel: Channel, message: String?) {
+        val params = message
+            ?.let { PhraseParams.forMessage(contact.displayName, it) }
+            ?: PhraseParams.forContact(contact.displayName)
+
+        // Confirma antes de actuar
+        when (channel) {
+            Channel.WHATSAPP -> speaker.speak(phrase(PhraseIntent.CONFIRM_WHATSAPP, params))
+            Channel.SMS -> speaker.speak(phrase(PhraseIntent.CONFIRM_SMS, params))
+            Channel.CALL -> speaker.speak(phrase(PhraseIntent.CONFIRM_CALL, params))
+        }
+
+        val result = when (channel) {
+            Channel.WHATSAPP -> {
+                if (message.isNullOrBlank()) {
+                    failDidNotUnderstand()
+                    return
+                }
+                IntentBranch.sendWhatsapp(context, contact, message)
+            }
+            Channel.SMS -> IntentBranch.sendSms(context, contact.phoneE164, message.orEmpty())
+            Channel.CALL -> IntentBranch.makeCall(context, contact.phoneE164)
+        }
+        when (result) {
+            ActionResult.Launched -> {
+                Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED")
+                val successIntent = when (channel) {
+                    Channel.WHATSAPP -> PhraseIntent.SUCCESS_WHATSAPP
+                    Channel.SMS -> PhraseIntent.SUCCESS_SMS
+                    Channel.CALL -> PhraseIntent.SUCCESS_CALL
+                }
+                speaker.speak(phrase(successIntent, params))
+            }
+            is ActionResult.Failed -> {
+                Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
+            }
+        }
+    }
+
+    private suspend fun executeShowHowTo(actionArg: String) {
+        val action = parseGuideAction(actionArg)
+        if (action == null) {
+            Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=unknown_guide_action arg=%s", actionArg)
+            failDidNotUnderstand()
+            return
+        }
+        val controller = guideController
+        val scope = scope
+        if (controller == null || scope == null) {
+            Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=guide_unavailable")
+            failDidNotUnderstand()
+            return
+        }
+        Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=show_how_to action=%s", action)
+        controller.start(action, scope)
+    }
+
+    private fun parseGuideAction(arg: String): GuideAction? = runCatching {
+        GuideAction.valueOf(arg.uppercase().replace('-', '_'))
+    }.getOrNull()
+
+    private suspend fun executeMaps(query: String) {
+        if (query.isBlank()) {
+            failDidNotUnderstand()
+            return
+        }
+        val params = PhraseParams.forMaps(query)
+        speaker.speak(phrase(PhraseIntent.CONFIRM_MAPS, params))
+        when (val result = IntentBranch.openMaps(context, query)) {
+            ActionResult.Launched -> {
+                Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=open_maps")
+                speaker.speak(phrase(PhraseIntent.SUCCESS_MAPS, params))
+            }
+            is ActionResult.Failed -> {
+                Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
+            }
+        }
+    }
+
+    private suspend fun failDidNotUnderstand() {
+        Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=unknown")
+        speaker.speak(phrase(PhraseIntent.UNKNOWN_COMMAND))
+    }
+
+    private suspend fun executeAfterContactClarification(transcript: String, contact: ContactRef) {
+        if (ActionIntentHeuristics.requestsCall(transcript)) {
+            executeChannel(contact, Channel.CALL, null)
+            return
+        }
+        val message = extractMessage(transcript)
+        if (message.isBlank()) {
+            failDidNotUnderstand()
+            return
+        }
+        val channel = memory.preferredChannel(contact)
+            ?: channelClarifier.clarify(contact)
+            ?: return
+        executeChannel(contact, channel, message)
+    }
+
+    private fun extractAlias(question: String, transcript: String): String? {
+        Regex("tu\\s+([^?]+)", RegexOption.IGNORE_CASE).find(question)?.let {
+            return it.groupValues[1].trim().lowercase(Locale("es", "AR"))
+        }
+        Regex("mi\\s+(\\w+)", RegexOption.IGNORE_CASE).find(transcript)?.let {
+            return it.groupValues[1].trim().lowercase(Locale("es", "AR"))
+        }
+        return null
+    }
+
+    private fun extractContactArg(transcript: String): String? {
+        val normalized = transcript.trim()
+        Regex("\\ba\\s+(.+?)\\s+que\\b", RegexOption.IGNORE_CASE).find(normalized)?.let {
+            return it.groupValues[1].trim()
+        }
+        Regex("\\ba\\s+(.+)$", RegexOption.IGNORE_CASE).find(normalized)?.let {
+            return it.groupValues[1].trim()
+        }
+        return null
+    }
+
+    private fun extractMessage(transcript: String): String =
+        Regex("\\bque\\s+(.+)$", RegexOption.IGNORE_CASE)
+            .find(transcript)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+            .orEmpty()
+
+    private fun explicitChannelFromTranscript(transcript: String): Channel? {
+        val normalized = transcript.lowercase(Locale("es", "AR"))
+        return when {
+            "whatsapp" in normalized || "wasap" in normalized -> Channel.WHATSAPP
+            "sms" in normalized -> Channel.SMS
+            "mensaje de texto" in normalized -> Channel.SMS
+            "llamada" in normalized || "telefono" in normalized || "teléfono" in normalized -> Channel.CALL
+            else -> null
+        }
+    }
+}
+
+internal object ActionIntentHeuristics {
+    fun requestsCall(transcript: String): Boolean {
+        val lower = transcript.lowercase(Locale("es", "AR"))
+        return "llam" in lower || "telefon" in lower || "telefón" in lower
+    }
+}

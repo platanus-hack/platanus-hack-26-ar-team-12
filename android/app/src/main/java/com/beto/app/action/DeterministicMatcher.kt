@@ -84,7 +84,9 @@ object DeterministicMatcher {
             val marker = " $connector "
             val index = input.indexOf(marker)
             if (index != -1) {
-                return input.substring(index + marker.length).trim().takeIf { it.isNotBlank() }
+                var msg = input.substring(index + marker.length).trim()
+                if (msg.startsWith("que ")) msg = msg.removePrefix("que ").trim()
+                return msg.takeIf { it.isNotBlank() }
             }
         }
 

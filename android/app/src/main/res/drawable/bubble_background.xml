@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Anillo exterior tintable (estado de Beto). Inicialmente gris (idle).
+     OverlayManager modifica el tint vía View.backgroundTintList según el BubbleState.
+     Borde negro 1dp para legibilidad sobre cualquier fondo de app target. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="oval">
-            <solid android:color="#888888" />
+            <solid android:color="@android:color/black" />
         </shape>
     </item>
     <item
-        android:bottom="4dp"
-        android:left="4dp"
-        android:right="4dp"
-        android:top="4dp">
+        android:bottom="1dp"
+        android:left="1dp"
+        android:right="1dp"
+        android:top="1dp">
         <shape android:shape="oval">
-            <solid android:color="#FFFFFF" />
+            <solid android:color="@android:color/white" />
         </shape>
     </item>
 </layer-list>

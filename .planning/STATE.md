@@ -2,56 +2,61 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-05-09T09:45:00.006Z"
-last_activity: 2026-05-09 -- Phase 1 execution started
+status: planning
+stopped_at: Phase 3 planning — roadmap reframed
+last_updated: "2026-05-09T22:00:00.000Z"
+last_activity: 2026-05-10 -- Phase 4 completa (4 plans). 125 tests verdes, APK 33MB.
 progress:
-  total_phases: 5
-  completed_phases: 0
-  total_plans: 3
-  completed_plans: 0
-  percent: 0
+  total_phases: 7
+  completed_phases: 4
+  total_plans: 20
+  completed_plans: 15
+  percent: 75
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-09)
+See: .planning/PROJECT.md (updated 2026-05-09 — full reframe)
 
-**Core value:** Beto entiende un comando de voz complejo en español argentino ("avisale a mi nieto que ya llegué") y ejecuta la acción correcta en el celular sin que el adulto mayor tenga que tocar nada más.
-**Current focus:** Phase 1 — Foundation & Sync de Hora 0
+**Core value:** Beto es un asistente conversacional que (1) opera el celular por voz, (2) aprende y recuerda al usuario, (3) guía con gestos en pantalla, (4) acompaña conversando, y (5) detecta intentos de estafa cuando se lo consultan — todo en español argentino con tono cálido.
+
+**Current focus:** Phase 3 — Cerebro IA + Memoria + Multi-canal con aprendizaje.
 
 ## Current Position
 
-Phase: 1 (Foundation & Sync de Hora 0) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 1
-Last activity: 2026-05-09 -- Phase 1 execution started
+Phase: 3 (Cerebro IA + Memoria + Multi-canal) — PLANNING
+Plan: 0 of 5 (plans being written)
+Status: Plans being authored after roadmap reframe
+Last activity: 2026-05-10 -- Completed quick task 260510-11o: Migrar de Gemini (Firebase AI Logic) a Claude API (anthropic-java)
 
-Progress: [░░░░░░░░░░] 0%
+Progress overall: [██░░░░░░░░] 29% (2 of 7 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Total plans completed: 6 (Phase 1: 3, Phase 2: 3)
+- Phase 3 plans pending: 5
+- Phase 4-7 plans pending: TBD
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 1. Foundation | 3/3 | ✓ Done |
+| 2. Plan C offline | 3/3 | ✓ Done |
+| 3. Cerebro IA + Memoria + Multi-canal | 0/5 | Planning |
+| 4. Voz humana + UX + Compañero + Guía | 0/4 | Plans escritos |
+| 5. Anti-fraude reactivo | 0/2 | Plans escritos |
+| 6. Activación rápida (opcional) | 0/2 | Plans escritos |
+| 7. Demo Readiness | 0/1 | Plans escritos |
 
 **Recent Trend:**
 
-- Last 5 plans: —
-- Trend: —
-
-*Updated after each plan completion*
+- Phase 1 + Phase 2: completados en sprint inicial (no medido formalmente).
+- Phase 3: planning post-reframe en curso.
 
 ## Accumulated Context
 
@@ -60,29 +65,50 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Roadmap: 5 fases coarse, vertical slicing, paralelización por superficies disjuntas (service/ overlay/ voice/ agent/ llm/ companion/).
-- Roadmap: Phase 2 entrega el Plan C offline-first funcionando antes que el LLM real — protege la demo desde temprano.
-- Roadmap: Phase 5 (Demo Readiness) es fase explícita, no polish — cubre Pitfalls #1, #8, #9, #12.
+- 2026-05-09: Roadmap reformulado (5 → 7 phases) post-Phase 2 para reflejar visión expandida (memoria, multi-canal, guía con gestos, anti-fraude reactivo, voz humana).
+- 2026-05-09: Loop agéntico universal completamente descopeado (out of scope permanente). Modo Guía con gestos lo reemplaza como diferenciador técnico.
+- 2026-05-09: Multi-canal con aprendizaje reemplaza WhatsApp-only — Beto pregunta el medio la primera vez y guarda preferencia.
+- 2026-05-09: Voz Beto pasa a ser LLM-generated (no PhraseBank fijo) para tono más humano, con cache por hash para latencia.
+- 2026-05-09: Memoria persistida con `EncryptedSharedPreferences` + JSON (kotlinx.serialization). No Room/SQLite, no embeddings.
+- 2026-05-09: Anti-fraude reactivo (no proactivo) — el user pregunta, Beto analiza. Out of scope: monitoreo continuo.
+- 2026-05-09: Wake word a Phase 6 opcional. Botón físico (vol-down 2s) como mínimo viable.
+- 2026-05-09: Soporte de computadora descopeado permanentemente.
 
 ### Pending Todos
 
-None yet.
+- ✓ Phase 3 plans escritos (03-01 a 03-05).
+- ✓ Phase 4 plans escritos (04-01 a 04-04).
+- ✓ Phase 5 plans escritos (05-01, 05-02).
+- ✓ Phase 6 plans escritos (06-01, 06-02 spike-conditional).
+- ✓ Phase 7 plan escrito (07-01).
+- Pendiente: ejecutar Phase 3 (Wave 1 paraleliza 03-01 + 03-03 + 03-04).
+- Sincronizar `docs/STATUS.md` cuando Phase 3 esté en ejecución.
 
-### Blockers/Concerns
+### Quick Tasks Completed
 
-- Phase 3 / 4 dependen de comportamiento real de Gemini 2.5 Flash en es-AR — solo medible al smoke test post-Phase 2. Mitigación arquitectural: `LlmClient` con dos impls (Gemini default, Anthropic comentado).
-- Phase 5 depende de medir latencia p95 al LLM desde el venue — solo medible en sitio. Mitigación: hotspot personal + cache por hash + Plan C offline.
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260510-11o | Migrar de Gemini (Firebase AI Logic) a Claude API (anthropic-java) | 2026-05-10 | 183b799 | [260510-11o-migrar-de-gemini-firebase-ai-logic-a-cla](./quick/260510-11o-migrar-de-gemini-firebase-ai-logic-a-cla/) |
+
+### Blockers / Concerns
+
+- Phase 3 / 4 dependen de comportamiento real de **Claude Haiku 4.5** en es-AR — solo medible al smoke test post-Phase 3.1. Migración a `anthropic-java` 2.30.0 completada (quick 260510-11o).
+- Voz neural premium TTS depende del device de demo — verificar en el teléfono real al inicio de Phase 4.
+- Modo Guía con gestos depende de poder localizar Views target por texto/id en apps externas (WhatsApp, etc.) vía AccessibilityService — alguno requerirá heurísticas específicas.
+- Anti-fraude requiere prompt que no genere falsos positivos sobre mensajes legítimos — necesita curado de ejemplos.
 
 ## Deferred Items
 
-Items acknowledged and carried forward from previous milestone close:
-
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| *(none — proyecto recién iniciado)* | | | |
+| LLM strategy | Anthropic ahora es el provider principal (Haiku 4.5) — Gemini fallback removido | Migrado en quick 260510-11o | 2026-05-10 |
+| Wake word | Implementación real ("Hola Beto") | Phase 6 opcional, requiere spike previo | 2026-05-09 |
+| Anti-fraude proactivo | Monitor continuo de notificaciones/SMS | Out of scope v1, candidato v2 | 2026-05-09 |
+| RAG memoria | Embeddings + retrieval para perfil grande | Out of scope v1 | 2026-05-09 |
+| Soporte computadora | Plataforma desktop | Out of scope permanente | 2026-05-09 |
 
 ## Session Continuity
 
-Last session: 2026-05-09T09:19:19.695Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation-sync-de-hora-0/01-CONTEXT.md
+Last session: 2026-05-09T22:00:00.000Z
+Stopped at: Phase 3 planning — roadmap reframed, plans 03-01..03-05 about to be written
+Resume file: .planning/phases/03-cerebro-ia-memoria-multi-canal/ (about to be created)

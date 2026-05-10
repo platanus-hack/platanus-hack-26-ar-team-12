@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Anillo SOLIDO (sin inner circle blanco) — solo el círculo de color completo,
+     usado como background tintable del ring view. El inner blanco va en otra View
+     superpuesta para que el tint del ring no sobreescriba el blanco interior. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@android:color/white" />
+</shape>

@@ -11,13 +11,13 @@ class IntentBranchTest {
     fun buildsWaMeUri() {
         val contact = DemoContact(
             canonicalName = "Mi nieto",
-            e164 = "+54 9 11 6677-8899",
+            e164 = "+54 9 11 3948-2682",
             aliases = setOf("nieto"),
         )
 
         val spec = IntentBranch.buildWhatsappIntentSpec(contact, "ya llegue")
 
-        assertTrue(spec.uri.contains("https://wa.me/5491166778899?text=ya%20llegue"))
+        assertTrue(spec.uri.contains("https://wa.me/5491139482682?text=ya%20llegue"))
     }
 
     @Test

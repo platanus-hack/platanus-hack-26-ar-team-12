@@ -2,13 +2,22 @@
 
 ## What This Is
 
-Beto es un agente multimodal autónomo de IA en Android — un "copiloto" para adultos mayores que ve la pantalla, escucha comandos por voz y opera el teléfono por ellos. Usa AccessibilityService para entender qué hay en la pantalla en tiempo real, ejecuta acciones a su nombre (mandar mensajes, llamar, navegar apps) y los acompaña con un tono cálido y paciente. Proyecto de hackathon (Platanus Hack 26 — track Vertical AI) construido por team-12 en 24-36 horas.
+Beto es un agente multimodal de IA en Android — un copiloto cálido y paciente para adultos mayores que **ejecuta acciones por voz, recuerda al usuario, lo guía visualmente cuando hace falta, lo acompaña conversando, y lo protege de estafas cuando se lo pregunta**. Usa AccessibilityService para "ver" la pantalla, `SpeechRecognizer` y `TextToSpeech` nativos para escuchar y hablar en español argentino, y Gemini 2.5 Flash (vía Firebase AI Logic) como cerebro para entender lenguaje natural, llamar tools y mantener una conversación natural. Proyecto de hackathon (Platanus Hack 26 — track Vertical AI) construido por team-12.
 
 ## Core Value
 
-**Beto entiende un comando de voz complejo en español argentino ("avisale a mi nieto que ya llegué") y ejecuta la acción correcta en el celular sin que el adulto mayor tenga que tocar nada más.**
+**Beto es un asistente conversacional que (1) opera el celular por voz, (2) aprende y recuerda al usuario, (3) guía con gestos en pantalla cómo usar las apps, (4) acompaña conversando, y (5) detecta intentos de estafa cuando se lo consultan — todo en español argentino con tono cálido.**
 
-Si todo lo demás falla, esa demo en vivo tiene que funcionar. Es lo que prueba la tesis: agente que opera el teléfono, no chatbot.
+La tesis del producto: el adulto mayor no debería tener que aprender el celular. Beto es el celular adaptándose a él.
+
+## Capabilities (v1 hackathon scope)
+
+1. **Ejecutor multi-canal con aprendizaje** — *"Mandale a mi nieto que ya llegué"* → Beto interpreta, pregunta el medio si es la primera vez (WhatsApp / SMS / llamada), resuelve el contacto desde la libreta del sistema, ejecuta. Aprende y guarda preferencias.
+2. **Memoria del usuario** — Persiste alias de contactos ("nieto" = Juan Pérez), medio preferido por contacto, hobbies, datos familiares. No vuelve a preguntar lo que ya sabe.
+3. **Modo Compañero** — Long-press en la burbuja abre un chat conversacional con Gemini en tono cálido. Para hablar, escuchar, hacer compañía.
+4. **Modo Guía con gestos en pantalla** — *"Beto, ¿cómo mando un audio?"* → Beto explica con voz **y** dibuja una flecha animada sobre el botón a tocar. Combina TTS + overlay + AccessibilityService para localizar el View.
+5. **Anti-fraude reactivo** — *"Beto, ¿esto es estafa?"* sobre un mensaje o screenshot. Gemini Vision analiza y devuelve veredicto cálido.
+6. **Voz humana** — Selección de la mejor **voz neural masculina argentina** disponible en el device + respuestas generadas por Gemini (no frases fijas) en tono de amigo, **siempre voseo, nunca "usted"**.
 
 ## Requirements
 
@@ -16,91 +25,121 @@ Si todo lo demás falla, esa demo en vivo tiene que funcionar. Es lo que prueba 
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+**Phase 1 — Foundation (completa):**
+- [x] App Android instalable (Kotlin 2.1.10, AGP 8.7.3, minSdk 31)
+- [x] AgentBus reactivo (SharedFlow) con eventos y comandos del sistema
+- [x] Burbuja flotante (drag, magnet a borde) sobre cualquier app
+- [x] Foreground Service con notificación persistente
+- [x] TTS nativo en es-AR con fallback es-ES → es → en-US
+- [x] Pre-flight check de permisos críticos al boot
+
+**Phase 2 — Plan C Offline (completa):**
+- [x] STT nativo en es-AR con `VoiceCaptureActivity`
+- [x] Matcher determinista para la familia *"mandale / avisale / decile"*
+- [x] Apertura de WhatsApp con Intent estricto y mensaje pre-llenado
+- [x] Confirmación TTS antes de actuar + reporte de éxito/fallo
 
 ### Active
 
-<!-- Current scope being built toward in 24-36hs hackathon sprint. -->
+<!-- Current scope being built toward in remaining hackathon time. -->
 
-**Hero — Motor de Acciones (híbrido)**
+**Phase 3 — Cerebro IA + Memoria + Multi-canal con aprendizaje**
 
-- [ ] App Android instalable en el teléfono dedicado de demo, con AccessibilityService y SYSTEM_ALERT_WINDOW pre-activados (asumimos permisos otorgados manualmente, sin onboarding en código)
-- [ ] Burbuja flotante persistente (SYSTEM_ALERT_WINDOW) que es el único punto de entrada al agente — sin wake word
-- [ ] Captura de voz por tap en burbuja usando STT nativo de Android (RecognizerIntent / SpeechRecognizer) en es-AR
-- [ ] Clasificador de intención + extractor de entidades vía LLM (destinatario, mensaje, app objetivo)
-- [ ] Top-3-4 comandos guionados vía Android Intents directos (WhatsApp send, llamada, SMS, Maps) — el camino confiable que se demuestra en vivo
-- [ ] Loop agéntico de respaldo: AccessibilityNodeInfo tree → LLM con captura/jerarquía → AccessibilityService.performAction() (click/scroll/type) — para acciones fuera del top-N, demuestra la visión universal
-- [ ] Feedback por voz al usuario (TTS nativo Android) confirmando qué se va a hacer y reportando éxito/fallo en tono cálido
+- [ ] Cliente Gemini 2.5 Flash vía Firebase AI Logic con structured tool calling
+- [ ] Sanitizer regex on-device (DNI / teléfono / tarjeta) antes de cualquier payload al LLM
+- [ ] STT corrector via Gemini: corrige transcripts dudosos usando contexto (contactos, comandos previos)
+- [ ] Acceso a la libreta del sistema (`ContactsContract`) con permiso runtime
+- [ ] Memoria persistida (`EncryptedSharedPreferences`) con: aliases de contactos, medio preferido por contacto, datos personales declarados
+- [ ] Action router LLM-driven multi-canal: si falta info, pregunta cálidamente; cuando recibe respuesta, guarda y nunca repregunta
 
-**Modo Compañero (MVP mínimo)**
+**Phase 4 — Voz humana + UX senior + Compañero + Guía con gestos**
 
-- [ ] Hold/long-press en la burbuja flotante abre sheet de chat conversacional con LLM
-- [ ] System prompt estricto: tono cálido, paciente, vocabulario simple, respuestas cortas, empatía argentina
+- [ ] Selector TTS: usa la voz neural premium del device si existe (Google Neural / Samsung)
+- [ ] Todas las respuestas son generadas por Gemini (no PhraseBank fijo) con caché por hash para latencia
+- [ ] 5 estados visuales de la burbuja (idle / listening / thinking / speaking / error) con transición ≤200ms
+- [ ] Tipografía senior (≥22sp) y colores high-contrast en toda UI propia
+- [ ] Modo Compañero: long-press abre sheet de chat conversacional Compose
+- [ ] Modo Guía con gestos: Beto explica con voz **y** dibuja flecha/highlight sobre el botón target
 
-**Privacidad — filtrado on-device**
+**Phase 5 — Anti-fraude reactivo**
 
-- [ ] Sanitizador local que tacha datos sensibles (DNI, teléfono, número de tarjeta) con regex antes de enviar texto/captura al LLM cloud — la versión más simple que cuente la historia en el pitch
+- [ ] Tool `analyze_for_fraud(text | screenshot)` con prompt Gemini especializado en estafas a adultos mayores en Argentina
+- [ ] Invocación natural: *"Beto, ¿esto es estafa?"* → captura el contenido relevante y devuelve veredicto cálido sin alarmismo
 
-**Demo readiness**
+**Phase 6 — Activación rápida (opcional)**
 
-- [ ] Teléfono dedicado seedeado con apps (WhatsApp instalado), contactos demo ("Mi nieto", "Hijo", etc.) y un chat de WhatsApp con mensaje "estafa" mockeado para potencial demo del Escudo
-- [ ] Guion de demo de 3-5 min ensayado: comando voz hero + 1-2 comandos extra + breve muestra del Compañero
-- [ ] `platanus-hack-project.json` completado (project-name, oneliner, descripción)
+- [ ] Activación por mantener pulsado volumen-down 2s (alternativa al tap en burbuja)
+- [ ] Spike de wake word real ("Hola Beto") — implementación si el spike sale viable
+
+**Phase 7 — Demo Readiness**
+
+- [ ] APK frozen ≥4 h antes
+- [ ] Hot-spare phone configurado idéntico
+- [ ] Hotspot dedicado del dev (no Wi-Fi del venue)
+- [ ] Guion ensayado 5x extremo a extremo
+- [ ] Video pre-grabado de respaldo (3 min)
+- [ ] Submission completa (`platanus-hack-project.json`, README)
 
 ### Out of Scope
 
-<!-- Explícitamente no construimos esto en el MVP. -->
+<!-- Explícitamente fuera del v1 hackathon. Documentado para evitar scope creep. -->
 
-- **Wake word "Beto"** — Porcupine es non-commercial en free tier y agrega trabajo on-device. Botón flotante cubre el rol de activación con cero riesgo de licencia. Roadmap post-hackathon.
-- **Escudo Antiestafas** — Flujo emocional fuerte pero requiere detección visual robusta + overlay rojo + lógica de heurísticas que arriesga el sprint. Solo si sobra tiempo después del MVP. Mencionar en pitch como roadmap.
-- **Onboarding visual de permisos** — AccessibilityService y SYSTEM_ALERT_WINDOW requieren navegación manual a Settings que no podemos automatizar. En la demo el teléfono ya está configurado; el código asume permisos otorgados.
-- **Cloud STT (Whisper / Realtime API)** — Mejor calidad para acentos pero suma latencia + dependencia de red en el peor momento (en vivo). Roadmap: cloud por default + nativo como fallback offline.
-- **NER on-device / pipeline de privacidad completo** — ML Kit / TF Lite NER agregaría 2-3 días. Regex simple alcanza para la narrativa.
-- **Multi-usuario / cuentas / persistencia de historial** — Beto en demo es single-device, single-user, stateless entre sesiones.
-- **iOS / Web** — Solo Android. La tesis depende de AccessibilityService.
+- **Soporte de computadora** — Plataforma entera nueva, no entra ni con 72 h. Roadmap v2+.
+- **Anti-fraude proactivo** (Beto detecta solo en tiempo real) — Requiere monitor de notificaciones + clasificador continuo. La versión reactiva (Phase 5) cubre la tesis sin el riesgo. v2.
+- **Loop agéntico universal** (LLM operando UI iterativamente) — El roadmap viejo lo planteaba "no se demuestra, pero existe". Con la nueva visión de Modo Guía + Multi-canal, no aporta valor. Permanente fuera. La tesis se prueba con Intents + memoria + guía visual.
+- **Memoria con embeddings / RAG** — JSON simple con perfil del usuario alcanza para hackathon. v2.
+- **Onboarding visual completo de permisos** — Permisos especiales (overlay, accesibilidad) requieren navegación manual a Settings que no podemos automatizar. Onboarding asistido por voz en v2.
+- **Cloud STT (Whisper / Realtime API)** — Suma latencia + dependencia de red. Nativo on-device + corrección por Gemini alcanzan. v2.
+- **NER on-device profundo** — Regex simple cuenta la historia para hackathon. v2.
+- **Multi-usuario / cuentas / sync** — Single-device, single-user, stateless entre milestones. v2.
+- **iOS / Web** — Tesis depende de AccessibilityService Android. Permanente fuera.
+- **Apps bancarias / pagos** — Bloquean AccessibilityService por seguridad. Excluir refuerza confianza. Anti-feature permanente.
 
 ## Context
 
-**Equipo:** 5 personas full-stack Android (Francisco Iturain, Mateo Buela, Nahuel Prado, Matías Sánchez Novelli, Enzo Canelo). Cualquiera puede tomar cualquier tarea — plan flexible, paralelización libre.
+**Equipo:** 5 personas Android (Francisco Iturain, Mateo Buela, Nahuel Prado, Matías Sánchez Novelli, Enzo Canelo). Cualquiera puede tomar cualquier tarea — paralelización por superficies disjuntas.
 
-**Hackathon — Platanus Hack 26 (Buenos Aires) — track Vertical AI:** la propuesta debe ser un agente vertical, no un chatbot genérico. La verticalidad de Beto es el dominio "operación del celular para adultos mayores", no un sector industrial.
+**Hackathon — Platanus Hack 26 (Buenos Aires) — track Vertical AI:** la verticalidad es el dominio "operación del celular para adultos mayores", no un sector industrial.
 
-**Audiencia / problema:** adultos mayores que enfrentan brecha digital y soledad. El producto debe transmitir empatía y simplicidad, no sofisticación técnica. CLAUDE.md ya define el tono que el agente usa con el usuario final: vocabulario extremadamente simple, cálido, paciente, respuestas muy cortas y directas, transmitir seguridad y empatía.
+**Audiencia / problema:** adultos mayores con brecha digital y soledad. El producto debe transmitir empatía y simplicidad. Vocabulario simple, cálido, paciente, corto, voseo argentino.
 
-**Setup técnico de demo:** teléfono Android dedicado (versión moderna, asumimos 13+) con todos los permisos pre-otorgados manualmente. Apps relevantes instaladas y seedeadas con datos demo realistas antes del pitch.
+**Setup técnico de demo:** teléfono Android dedicado (API 31+) con permisos pre-otorgados manualmente. Apps relevantes (WhatsApp, Maps) instaladas y seedeadas.
 
-**Naturaleza de hackathon:** no buscamos producción ni escala. Cualquier decisión que sume robustez "para producción" pero quite tiempo a la demo es la decisión incorrecta. Si algo es frágil pero funciona en el guion ensayado, alcanza.
+**Naturaleza de hackathon:** robustez para producción es la decisión incorrecta si quita tiempo a la demo. Si algo es frágil pero funciona en el guion ensayado, alcanza. Caminos confiables (Intents) preferidos sobre caminos impresionantes pero frágiles para todo lo que el guion principal toca.
 
-**Restricciones conocidas de AccessibilityService que impactan el plan:**
-- Requiere activación manual en Settings → Accesibilidad (no hay dialog estándar)
-- `performGlobalAction` y `performAction` sobre nodos son confiables, pero el árbol de vistas es ruidoso e inconsistente entre apps — el loop agéntico es frágil por naturaleza
-- WhatsApp y muchas apps populares cumplen razonablemente con accesibilidad, pero apps bancarias frecuentemente bloquean lectura por seguridad
-- Capturas de pantalla vía MediaProjection es un permiso aparte (dialog estándar) — preferimos texto del árbol de vistas cuando alcanza, captura solo si el LLM la necesita
+**Restricciones conocidas que impactan el plan:**
+- AccessibilityService requiere activación manual en Settings (no hay dialog estándar)
+- `performAction` sobre nodos es confiable; el árbol de vistas es ruidoso entre apps
+- WhatsApp y apps populares cumplen razonablemente con accesibilidad; bancos suelen bloquear
+- Permiso `READ_CONTACTS` se pide runtime (sí hay dialog estándar) — necesario para memoria
+- Voz TTS argentina puede no estar instalada — fallback a es-ES + advertencia al setup
 
 ## Constraints
 
-- **Timeline:** 24-36 horas de sprint hasta la demo en vivo — no hay margen para iteraciones largas, refactors o validación con usuarios reales
-- **Tech stack:** Android nativo (Kotlin) + AccessibilityService + SYSTEM_ALERT_WINDOW. No React Native, no Flutter — la verticalidad sobre Accessibility lo hace inviable
-- **STT:** Android nativo (RecognizerIntent / SpeechRecognizer) en es-AR. Cloud STT es post-MVP
-- **TTS:** Android `TextToSpeech` nativo con voz en es-AR
-- **LLM:** sin decidir aún — la fase de research evalúa Claude vs GPT vs Gemini con criterios: latencia para voz, calidad multimodal (visión sobre capturas), capacidad de tool/function calling robusto para el motor de acciones, cuota gratis o créditos para hackathon, calidad en es-AR
-- **Privacidad:** sanitización mínima on-device antes de enviar a LLM cloud — regex de DNI/teléfono/tarjeta. No filtrado profundo
-- **Equipo:** 5 personas trabajando en paralelo — preferir tareas con poca interdependencia, agradar merges seguidos, evitar bottlenecks de un solo archivo
-- **Demo:** un teléfono dedicado, sin internet inestable como excusa — si algo crashea en vivo, perdimos. Preferir caminos confiables (Intents) sobre caminos impresionantes pero frágiles (loop agéntico) para los comandos del guion principal
+- **Timeline:** 24-36 horas de sprint hasta la demo
+- **Tech stack:** Android nativo Kotlin + AccessibilityService + SYSTEM_ALERT_WINDOW
+- **STT:** Android `SpeechRecognizer` (cloud-backed default, on-device API 31+ donde aplique)
+- **TTS:** Android `TextToSpeech` nativo, mejor voz neural disponible en device
+- **LLM:** Gemini 2.5 Flash vía `com.google.firebase:firebase-ai` (Firebase AI Logic). Modelo Lite para Compañero por costo/latencia. Fallback Anthropic comentado si Gemini falla en es-AR.
+- **Persistencia:** `EncryptedSharedPreferences` (memoria del usuario). Sin DB.
+- **Privacidad:** sanitización mínima on-device (regex DNI / teléfono / tarjeta) antes de cualquier llamada al LLM.
+- **Equipo:** 5 personas en paralelo — superficies de archivos disjuntas, evitar bottlenecks.
+- **Demo:** un teléfono dedicado + hot-spare. Confiabilidad sobre sofisticación en el guion principal.
 
 ## Key Decisions
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Motor de Acciones híbrido (Intents fijos + loop agéntico de respaldo) | Visión "agente universal" en 24-36hs es inviable como demo confiable. Híbrido garantiza que el guion principal funcione (Intents) y muestra ambición (loop) como bonus | — Pending |
-| Sin wake word en MVP — solo botón flotante | Porcupine es non-commercial en free tier. Botón flotante cubre activación sin riesgo legal ni técnico. Wake word queda en roadmap | — Pending |
-| Modo Compañero adentro del MVP | Es "casi gratis" una vez que tenemos LLM + UI básica. Es el alma del producto y suma narrativa al pitch | — Pending |
-| Escudo Antiestafas afuera del MVP | Detección visual robusta + overlay + heurísticas es scope grande para 24-36hs. Mejor mencionarlo en pitch que mostrarlo frágil | — Pending |
-| STT nativo Android (RecognizerIntent) | Funciona en es-AR, gratis, on-device, suficiente para demo con guion ensayado. Cloud STT = post-MVP | — Pending |
-| Filtrado de privacidad: regex simple on-device | "Lo más simple que cuente la historia". NER on-device sumaría días | — Pending |
-| Asumir permisos pre-otorgados (sin onboarding) | Demo es controlada — pre-configuramos el teléfono. Onboarding no aporta a la demo y consume horas | — Pending |
-| Solo Android (Kotlin nativo) | La tesis del producto depende de AccessibilityService. iOS/Web no aplican | ✓ Good |
-| LLM provider: a decidir en research | Decisión crítica que afecta arquitectura, latencia y costo. Merece evaluación basada en criterios concretos antes de comprometernos | — Pending |
+| Decisión | Rationale | Estado |
+|---|---|---|
+| Reformular roadmap completo después de Phase 2 | La visión del producto creció: memoria, multi-canal, guía con gestos, anti-fraude reactivo. Phases 3-5 viejas quedaron desalineadas. | ✓ Hecho 2026-05-09 |
+| Multi-canal con aprendizaje en lugar de WhatsApp-only | El usuario dijo *"no nos cerremos por simples"*. Pregunta el medio la primera vez y guarda preferencia. | — Active |
+| Memoria persistida en `EncryptedSharedPreferences` (no Room/SQLite) | Hackathon scope. JSON serializado con `kotlinx.serialization` alcanza para perfil + aliases + preferencias. | — Active |
+| Modo Guía con gestos como feature core | Diferenciador fuerte vs. asistentes existentes. Combina TTS + overlay + AccessibilityService que ya tenemos. | — Active |
+| Voz Beto = Gemini-generated, no PhraseBank fijo | Para sonar más humano. Cache por hash mitiga latencia. | — Active |
+| Anti-fraude reactivo (no proactivo) | Reactivo es 1 tool + prompt. Proactivo requiere monitor continuo, alto riesgo. | — Active |
+| Wake word a Phase 6 (opcional) | Botón físico (volumen-down 2s) cubre el caso sin licencias problemáticas. Wake word real solo si el spike sale viable. | — Active |
+| Loop agéntico universal descopeado por completo | El roadmap viejo lo tenía como "no se demuestra". La nueva visión no lo necesita. | ✓ Out of scope |
+| Soporte de computadora descopeado | Plataforma entera nueva. Imposible en 24-36 h. | ✓ Out of scope |
+| Solo Android Kotlin nativo | La tesis depende de AccessibilityService. iOS / web no aplican. | ✓ Locked |
 
 ## Evolution
 
@@ -111,13 +150,11 @@ This document evolves at phase transitions and milestone boundaries.
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
 4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
 
 ---
-*Last updated: 2026-05-09 after initialization*
+*Last updated: 2026-05-09 — full reframe post Phase 2: nueva visión (memoria + multi-canal + guía con gestos + anti-fraude reactivo + voz humana). Roadmap pasa de 5 a 7 phases.*

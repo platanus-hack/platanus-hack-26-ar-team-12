@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flecha que apunta hacia abajo (default). El GestureOverlay la rota si necesita
+     apuntar desde otra dirección. Color ámbar (mismo que THINKING) para máxima visibilidad. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Body de la flecha (rectángulo hacia abajo) -->
+    <path
+        android:fillColor="#FF8F00"
+        android:strokeColor="#000000"
+        android:strokeWidth="2"
+        android:pathData="M19,4 L29,4 L29,30 L36,30 L24,44 L12,30 L19,30 Z" />
+</vector>

@@ -1,18 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Burbuja de Beto con sistema de 5 estados visuales (D-13/D-14).
+     Capas (bottom-up):
+       1. bubble_ring: anillo SOLIDO tintable según BubbleState (idle gris / listening azul / etc.)
+       2. bubble_inner: círculo blanco interno con margen, hace destacar el logo.
+       3. bubble_logo: logo de Beto, ESTABLE en todos los estados (D-13).
+       4. bubble_state_icon_container + icon: badge bottom-right con ícono semántico
+          (mic / dots / speaker / alert) — refuerza el estado más allá del color (UX 1.4.1).
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/bubble_root"
-    android:layout_width="64dp"
-    android:layout_height="64dp"
-    android:background="@drawable/bubble_background"
-    android:elevation="8dp"
-    android:padding="8dp">
+    android:layout_width="@dimen/beto_bubble_size"
+    android:layout_height="@dimen/beto_bubble_size"
+    android:elevation="8dp">
 
-    <ImageView
-        android:id="@+id/bubble_logo"
+    <View
+        android:id="@+id/bubble_ring"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center"
-        android:contentDescription="@string/app_name"
-        android:scaleType="fitCenter"
-        android:src="@drawable/project_logo" />
+        android:background="@drawable/bubble_ring_solid"
+        android:backgroundTint="@color/beto_state_idle" />
+
+    <FrameLayout
+        android:id="@+id/bubble_inner"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="@dimen/beto_bubble_ring_width"
+        android:background="@drawable/bubble_inner_circle"
+        android:clipChildren="true"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/bubble_logo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/app_name"
+            android:scaleType="centerCrop"
+            android:src="@drawable/project_logo" />
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/bubble_state_icon_container"
+        android:layout_width="@dimen/beto_bubble_state_icon_size"
+        android:layout_height="@dimen/beto_bubble_state_icon_size"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="@dimen/beto_bubble_state_icon_margin"
+        android:layout_marginBottom="@dimen/beto_bubble_state_icon_margin"
+        android:background="@drawable/state_icon_background"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/bubble_state_icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="3dp"
+            android:scaleType="centerInside"
+            android:contentDescription="@null" />
+    </FrameLayout>
 </FrameLayout>

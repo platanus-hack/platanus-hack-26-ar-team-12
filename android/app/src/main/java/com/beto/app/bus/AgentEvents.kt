@@ -21,23 +21,85 @@ sealed class AgentEvent {
     /** Long-press en la burbuja flotante. Phase 3 lo conecta al Modo Compañero. */
     object BubbleLongPressed : AgentEvent()
 
+    /** La burbuja fue soltada en la zona inferior central para cerrar Beto. */
+    object BubbleCloseRequested : AgentEvent()
+
+    /** TTS empezó a pronunciar (onStart). Phase 4 lo usa para transicionar bubble state a SPEAKING. */
+    data class TtsStarted(val utteranceId: String) : AgentEvent()
+
     /** TTS pronunció una frase exitosamente. */
     data class TtsSpoke(val text: String) : AgentEvent()
 
     /** TTS falló. Razón típica: init no completado, voz no descargada, idioma no soportado. */
     data class TtsFailed(val reason: String) : AgentEvent()
 
+    /** SpeechRecognizer se conectó y empezó a escuchar (Phase 4 lo usa para LISTENING state). */
+    object VoiceCaptureStarted : AgentEvent()
+
     /** Resultado final de Android SpeechRecognizer/RecognizerIntent. */
     data class VoiceCaptured(val text: String, val elapsedMs: Long) : AgentEvent()
 
+    /** Se disparó corrección de STT para un transcript ambiguo. */
+    data class SttCorrectionStarted(val raw: String, val confidence: Float?) : AgentEvent()
+
     /** Captura de voz cancelada, vacía, o fallida. */
     data class VoiceCaptureFailed(val reason: String, val elapsedMs: Long) : AgentEvent()
+
+    /** Captura de voz superó el timeout sin detectar speech (Phase 4: vuelve a IDLE). */
+    object VoiceCaptureTimeout : AgentEvent()
+
+    /** Un Intent fue disparado exitosamente (WhatsApp/SMS/llamada/Maps). */
+    data class IntentLaunched(val tool: String) : AgentEvent()
+
+    /** Un tool del LLM o un Intent falló al ejecutarse. */
+    data class ToolFailed(val tool: String, val reason: String) : AgentEvent()
+
+    /** Modo Guía (Phase 4-04) — el LLM disparó `show_how_to(action)` y el guide arranca. */
+    data class GuideStarted(val action: com.beto.app.guide.GuideAction) : AgentEvent()
+
+    /** Cada vez que la flecha se muestra sobre un step del guide. */
+    data class GuideStepShown(val action: com.beto.app.guide.GuideAction, val stepNumber: Int) : AgentEvent()
+
+    /** Guide terminó (success o failure path) — overlay se hide en cualquier caso. */
+    data class GuideEnded(val action: com.beto.app.guide.GuideAction) : AgentEvent()
+
+    /** User canceló el guide tocando la burbuja durante un step. */
+    data class GuideCancelled(val action: com.beto.app.guide.GuideAction) : AgentEvent()
 
     /** BetoAccessibilityService o BetoForegroundService onCreate / onServiceConnected. */
     object ServiceStarted : AgentEvent()
 
     /** BetoAccessibilityService o BetoForegroundService onDestroy. */
     object ServiceStopped : AgentEvent()
+
+    /** CompanionActivity abierta — el ForegroundService oculta la burbuja para no duplicar agentes. */
+    object CompanionOpened : AgentEvent()
+
+    /** CompanionActivity cerrada — el ForegroundService re-muestra la burbuja. */
+    object CompanionClosed : AgentEvent()
+
+    /** El chat envió un mensaje (texto o transcrito). FGS lo rutea por el ActionDispatcher. */
+    data class ChatMessageSent(val text: String) : AgentEvent()
+
+    /** El motor de acciones decidió hablar al usuario. Chat lo muestra como bubble de Beto. */
+    data class BetoReplied(val text: String) : AgentEvent()
+
+    /** Nivel de RMS del SpeechRecognizer (-2..10 dB típicamente). Para visualizer reactivo. */
+    data class SttRmsChanged(val rmsdB: Float) : AgentEvent()
+
+    /**
+     * Phase 5 — el ScamWatcher detectó riesgo proactivo sobre la pantalla del usuario.
+     * `assessment` ya pasó el threshold (HIGH por default). `contextHash` se usa para dedupe
+     * cross-emisión y para que el AlertOrchestrator (Block 6) no muestre el overlay dos veces
+     * sobre el mismo contenido. `text` es lo que vio Accessibility (sin sanitizar todavía —
+     * el LLM Explainer corre el Sanitizer antes de mandar a la nube).
+     */
+    data class ScamRiskDetected(
+        val packageName: String,
+        val assessment: com.beto.app.scam.RiskAssessment,
+        val text: String,
+        val contextHash: String,
+    ) : AgentEvent()
 
     // TODO Phase 2-3: IntentClassified(toolCall: ToolCall), ActionExecuted(name: String), ToolFailed(name: String, reason: String)
     // TODO Phase 4: TreeSnapshot(nodeRefs: List<NodeRef>), AgenticIterationComplete(iter: Int), AgenticAborted(reason: String)
@@ -49,7 +111,24 @@ sealed class AgentEvent {
  */
 sealed class AgentCommand {
     data class Speak(val text: String) : AgentCommand()
-    data class StartVoiceCapture(val startedAtMs: Long? = null) : AgentCommand()
 
-    // TODO Phase 2-4: ExecuteToolCall, RunAgenticLoop, OpenCompanion, etc.
+    /**
+     * Pide abrir el mic.
+     *  - `interruptTts = true` cuando es user-initiated (tap burbuja, tap mic en chat):
+     *    el handler debe cortar cualquier TTS en curso y abrir mic ya, porque el user
+     *    está overrideando a Beto.
+     *  - `interruptTts = false` (default) cuando lo emite un componente automático
+     *    (clarifier que pide respuesta tras hablar): debe esperar a que TTS termine
+     *    para no autograbar a Beto.
+     */
+    data class StartVoiceCapture(
+        val startedAtMs: Long? = null,
+        val interruptTts: Boolean = false,
+    ) : AgentCommand()
+
+    /** Long-press en la burbuja → abre el Modo Compañero (Phase 4-03). */
+    object OpenCompanion : AgentCommand()
+
+    /** Cancela la captura de voz en curso (botón Stop del chat). */
+    object StopVoiceCapture : AgentCommand()
 }

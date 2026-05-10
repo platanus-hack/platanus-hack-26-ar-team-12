@@ -3,6 +3,8 @@
 .vscode/
 .antigravity/
 
+node_modules/
+android/app/google-services.json
 
 # env files
 .env
@@ -26,7 +28,7 @@ target/
 android/.gradle/
 android/build/
 android/app/build/
-android/local.properties
+android/local.properties*
 android/.idea/
 *.iml
 

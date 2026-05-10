@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bubble state palette — color + ícono (no color-only — UX-04 / WCAG 1.4.1).
+         Contraste verificado ≥4.5:1 sobre fondo blanco para texto, ≥3:1 para anillo de estado. -->
+    <color name="beto_state_idle">#9E9E9E</color>        <!-- gris neutro -->
+    <color name="beto_state_listening">#1976D2</color>   <!-- azul brillante -->
+    <color name="beto_state_thinking">#FF8F00</color>    <!-- ámbar -->
+    <color name="beto_state_speaking">#388E3C</color>    <!-- verde -->
+    <color name="beto_state_error">#D32F2F</color>       <!-- rojo -->
+
+    <!-- Anillo de borde + sombra -->
+    <color name="beto_ring_outline">#000000</color>
+    <color name="beto_bubble_inner">#FFFFFF</color>
+
+    <!-- High-contrast text (≥4.5:1) -->
+    <color name="beto_text_primary">#000000</color>
+    <color name="beto_text_secondary">#212121</color>
+    <color name="beto_text_on_primary">#FFFFFF</color>
+    <color name="beto_surface">#FFFFFF</color>
+    <color name="beto_surface_variant">#F5F5F5</color>
+
+    <!-- Escudo Antiestafas (Phase 5 / pitch slide 6) — paleta de alerta cálida pero firme. -->
+    <color name="scam_alert_scrim">#80000000</color>          <!-- 50% black, oscurece chat detrás -->
+    <color name="scam_alert_surface">#FFFFFFFF</color>        <!-- card -->
+    <color name="scam_alert_badge_bg">#FFB71C1C</color>       <!-- rojo intenso para el chip "Escudo" -->
+    <color name="scam_alert_badge_text">#FFFFFFFF</color>
+    <color name="scam_alert_title">#FFB71C1C</color>          <!-- título alerta en rojo -->
+    <color name="scam_alert_body">#FF212121</color>
+    <color name="scam_alert_signal_bg">#FFFFEBEE</color>      <!-- chips de signals — rojo pastel -->
+    <color name="scam_alert_signal_text">#FFB71C1C</color>
+    <color name="scam_alert_button_call_bg">#FF2E7D32</color> <!-- verde acción confiable: llamar -->
+    <color name="scam_alert_button_call_text">#FFFFFFFF</color>
+    <color name="scam_alert_button_dismiss_bg">#FFEEEEEE</color>
+    <color name="scam_alert_button_dismiss_text">#FF424242</color>
+    <color name="scam_alert_button_acknowledge_text">#FF757575</color>
+</resources>

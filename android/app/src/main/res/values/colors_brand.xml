@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color de marca de Beto — matchea el azul del logo (project_logo.png).
+         Usado como background del adaptive icon para que el círculo del launcher
+         quede uniforme (sin doble marco). -->
+    <color name="beto_brand_blue">#1976D2</color>
+</resources>

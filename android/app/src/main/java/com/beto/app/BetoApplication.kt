@@ -5,7 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import androidx.core.content.getSystemService
+import com.beto.app.llm.ClaudeLlmClient
+import com.beto.app.memory.UserMemoryStore
+import com.beto.app.trust.TrustedContactsRepository
 import com.beto.app.util.LogTags
+import com.beto.app.voice.PhraseGenerator
 import com.beto.app.voice.TtsManager
 import timber.log.Timber
 
@@ -31,10 +35,23 @@ class BetoApplication : Application() {
         // Notif channel del FGS (D-15) — declarado acá para que el canal exista antes
         // de que BetoForegroundService.startForeground lo use.
         ensureNotificationChannel(this)
+
+        userMemoryStore = UserMemoryStore(this)
+        trustedContactsRepository = TrustedContactsRepository(this)
+        phraseGenerator = PhraseGenerator(ClaudeLlmClient())
+        // Warm cache en background — pre-genera frases comunes para que la primera
+        // interacción no espere al LLM. No bloquea boot.
+        phraseGenerator.warmCache()
     }
 
     companion object {
         const val FGS_CHANNEL_ID = "beto_service"
+        lateinit var userMemoryStore: UserMemoryStore
+            private set
+        lateinit var trustedContactsRepository: TrustedContactsRepository
+            private set
+        lateinit var phraseGenerator: PhraseGenerator
+            private set
 
         fun ensureNotificationChannel(ctx: Context) {
             val nm = ctx.getSystemService<NotificationManager>() ?: return
