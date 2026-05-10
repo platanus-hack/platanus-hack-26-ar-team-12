@@ -9,6 +9,10 @@ import com.beto.app.memory.Channel
 import com.beto.app.memory.ContactRef
 import com.beto.app.memory.UserMemoryStore
 import com.beto.app.util.LogTags
+import com.beto.app.voice.PhraseFallbacks
+import com.beto.app.voice.PhraseGenerator
+import com.beto.app.voice.PhraseIntent
+import com.beto.app.voice.PhraseParams
 import kotlinx.coroutines.CoroutineScope
 import timber.log.Timber
 import java.util.Locale
@@ -21,9 +25,17 @@ class ActionDispatcher(
     private val contactClarifier: ContactClarifier,
     private val channelClarifier: ChannelClarifier,
     private val speaker: Speaker,
+    private val phraseGenerator: PhraseGenerator? = null,
     private val sendWhatsapp: (Context, DemoContact, String) -> ActionResult = IntentBranch::sendWhatsapp,
     private val scope: CoroutineScope? = null,
 ) {
+
+    /**
+     * Genera una frase via LLM si hay PhraseGenerator inyectado, sino usa el fallback hardcoded.
+     * Mantenemos compatibilidad hacia atrás (tests sin PhraseGenerator siguen funcionando).
+     */
+    private suspend fun phrase(intent: PhraseIntent, params: PhraseParams = PhraseParams.empty()): String =
+        phraseGenerator?.forIntent(intent, params) ?: PhraseFallbacks.forIntent(intent, params)
     suspend fun handle(transcript: String) {
         Timber.tag(LogTags.ACTION).d("DISPATCH_START")
         when (val routed = ActionRouter.routeTranscript(transcript)) {
@@ -53,16 +65,17 @@ class ActionDispatcher(
         }
     }
 
-    private fun executePlanC(match: MatchResult.Matched) {
-        speaker.speak("Abro WhatsApp con el mensaje para tu nieto.")
+    private suspend fun executePlanC(match: MatchResult.Matched) {
+        val contactName = match.contact.canonicalName
+        speaker.speak(phrase(PhraseIntent.CONFIRM_WHATSAPP, PhraseParams.forContact(contactName)))
         when (val result = sendWhatsapp(context, match.contact, match.message)) {
             ActionResult.Launched -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=send_whatsapp")
-                speaker.speak("Listo, te deje el mensaje preparado.")
+                speaker.speak(phrase(PhraseIntent.SUCCESS_WHATSAPP, PhraseParams.forContact(contactName)))
             }
             is ActionResult.Failed -> {
                 Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
-                speaker.speak("No pude abrir WhatsApp. Probemos de nuevo en un ratito, dale.")
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
             }
         }
     }
@@ -132,6 +145,17 @@ class ActionDispatcher(
     }
 
     private suspend fun executeChannel(contact: ContactRef, channel: Channel, message: String?) {
+        val params = message
+            ?.let { PhraseParams.forMessage(contact.displayName, it) }
+            ?: PhraseParams.forContact(contact.displayName)
+
+        // Confirma antes de actuar
+        when (channel) {
+            Channel.WHATSAPP -> speaker.speak(phrase(PhraseIntent.CONFIRM_WHATSAPP, params))
+            Channel.SMS -> speaker.speak(phrase(PhraseIntent.CONFIRM_SMS, params))
+            Channel.CALL -> speaker.speak(phrase(PhraseIntent.CONFIRM_CALL, params))
+        }
+
         val result = when (channel) {
             Channel.WHATSAPP -> {
                 if (message.isNullOrBlank()) {
@@ -146,35 +170,42 @@ class ActionDispatcher(
         when (result) {
             ActionResult.Launched -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED")
-                speaker.speak("Listo.")
+                val successIntent = when (channel) {
+                    Channel.WHATSAPP -> PhraseIntent.SUCCESS_WHATSAPP
+                    Channel.SMS -> PhraseIntent.SUCCESS_SMS
+                    Channel.CALL -> PhraseIntent.SUCCESS_CALL
+                }
+                speaker.speak(phrase(successIntent, params))
             }
             is ActionResult.Failed -> {
                 Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
-                speaker.speak("No pude hacerlo. Probemos de nuevo en un ratito.")
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
             }
         }
     }
 
-    private fun executeMaps(query: String) {
+    private suspend fun executeMaps(query: String) {
         if (query.isBlank()) {
             failDidNotUnderstand()
             return
         }
+        val params = PhraseParams.forMaps(query)
+        speaker.speak(phrase(PhraseIntent.CONFIRM_MAPS, params))
         when (val result = IntentBranch.openMaps(context, query)) {
             ActionResult.Launched -> {
                 Timber.tag(LogTags.ACTION).d("DISPATCH_EXECUTED tool=open_maps")
-                speaker.speak("Listo, te abro el mapa.")
+                speaker.speak(phrase(PhraseIntent.SUCCESS_MAPS, params))
             }
             is ActionResult.Failed -> {
                 Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=%s", result.reason)
-                speaker.speak("No pude abrir el mapa. Probemos de nuevo en un ratito.")
+                speaker.speak(phrase(PhraseIntent.FAILED_INTENT))
             }
         }
     }
 
-    private fun failDidNotUnderstand() {
+    private suspend fun failDidNotUnderstand() {
         Timber.tag(LogTags.ACTION).w("DISPATCH_FAILED reason=unknown")
-        speaker.speak("No te entendí del todo, repetímelo más despacito.")
+        speaker.speak(phrase(PhraseIntent.UNKNOWN_COMMAND))
     }
 
     private suspend fun executeAfterContactClarification(transcript: String, contact: ContactRef) {

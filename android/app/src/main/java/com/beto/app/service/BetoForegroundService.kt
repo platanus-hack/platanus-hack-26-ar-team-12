@@ -75,6 +75,7 @@ class BetoForegroundService : LifecycleService() {
             contactClarifier = contactClarifier,
             channelClarifier = channelClarifier,
             speaker = speaker,
+            phraseGenerator = BetoApplication.phraseGenerator,
             scope = lifecycleScope,
         )
 

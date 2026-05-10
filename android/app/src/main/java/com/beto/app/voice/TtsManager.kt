@@ -6,14 +6,18 @@ import android.speech.tts.UtteranceProgressListener
 import com.beto.app.bus.AgentBus
 import com.beto.app.bus.AgentEvent
 import com.beto.app.util.LogTags
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
 
 /**
  * Singleton TTS — init en BetoApplication.onCreate(), cola interna pre-init para evitar
@@ -32,6 +36,9 @@ object TtsManager {
     private val pendingQueue: ConcurrentLinkedQueue<String> = ConcurrentLinkedQueue()
     private val utteranceCounter = AtomicInteger(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val pendingContinuations: ConcurrentHashMap<String, CancellableContinuation<Unit>> = ConcurrentHashMap()
+    private var selectedVoiceName: String? = null
+    private var selectedVoiceIsLikelyMale: Boolean = false
 
     private val LOCALE_CASCADE = listOf(
         Locale("es", "AR"),
@@ -60,10 +67,51 @@ object TtsManager {
                 return@TextToSpeech
             }
             Timber.tag(LogTags.TTS).i("onInit SUCCESS — locale=%s", chosen)
+            applyBestVoice()
             tts?.setOnUtteranceProgressListener(progressListener)
             isReady = true
             flushPending()
         }
+    }
+
+    /**
+     * Después de fijar el locale, intenta seleccionar la mejor voz **masculina + neural + argentina**.
+     * Loguea la voz elegida con `VOICE_SELECTED` o un warning si la heurística no encontró masculina
+     * (para revisar manualmente al setup del device de demo).
+     */
+    private fun applyBestVoice() {
+        val engine = tts ?: return
+        val voices = runCatching { engine.voices.orEmpty() }.getOrElse { emptySet() }
+        val best = VoiceSelector.selectBest(voices)
+        if (best == null) {
+            Timber.tag(LogTags.TTS).w("VOICE_SELECTED none — no Spanish voice found")
+            return
+        }
+        val res = engine.setVoice(best)
+        if (res != TextToSpeech.SUCCESS) {
+            Timber.tag(LogTags.TTS).w("setVoice failed code=%d voice=%s", res, best.name)
+            return
+        }
+        selectedVoiceName = best.name
+        selectedVoiceIsLikelyMale = VoiceSelector.isLikelyMale(best)
+        Timber.tag(LogTags.TTS).i(
+            "VOICE_SELECTED name=%s locale=%s likelyMale=%s networkRequired=%s",
+            best.name,
+            best.locale,
+            selectedVoiceIsLikelyMale,
+            best.isNetworkConnectionRequired,
+        )
+        if (!selectedVoiceIsLikelyMale) {
+            Timber.tag(LogTags.TTS).w(
+                "VOICE_GENDER_FALLBACK selected=%s preferred=male — instalar voz masculina argentina pre-demo",
+                best.name,
+            )
+        }
+    }
+
+    /** Snapshot de la voz seleccionada (para debug / pre-flight check). */
+    fun selectedVoiceSummary(): String? = selectedVoiceName?.let {
+        "$it (likelyMale=$selectedVoiceIsLikelyMale)"
     }
 
     private fun pickFirstAvailableLocale(): Locale? {
@@ -110,6 +158,39 @@ object TtsManager {
         }
     }
 
+    /**
+     * Habla un texto y suspende hasta que el TTS termine (onDone/onError).
+     * Usado por clarificadores (Phase 3) y Modo Guía (Phase 4-04) que necesitan
+     * encadenar voz → captura → voz sin pisarse.
+     *
+     * Si TTS no está listo, encola con `speak()` y completa inmediato (degradación
+     * elegante — no queremos colgar la coroutine si TTS fallo init).
+     */
+    suspend fun speakAndAwait(text: String) {
+        if (text.isBlank()) return
+        if (!isReady) {
+            Timber.tag(LogTags.TTS).w("speakAndAwait pre-init — encolando sin esperar")
+            pendingQueue.add(text)
+            return
+        }
+        suspendCancellableCoroutine<Unit> { cont ->
+            val id = "beto-await-${utteranceCounter.incrementAndGet()}"
+            pendingContinuations[id] = cont
+            cont.invokeOnCancellation {
+                pendingContinuations.remove(id)
+                runCatching { tts?.stop() }
+            }
+            val res = tts?.speak(text, TextToSpeech.QUEUE_ADD, null, id)
+            if (res != TextToSpeech.SUCCESS) {
+                pendingContinuations.remove(id)
+                Timber.tag(LogTags.TTS).e("speakAndAwait fail res=%s text=%s", res, text)
+                if (cont.isActive) cont.resume(Unit)
+            } else {
+                Timber.tag(LogTags.TTS).d("speakAndAwait ok id=%s text=%s", id, text)
+            }
+        }
+    }
+
     /** Frase de boot exacta de D-10 — pronunciada por BetoForegroundService al primer start. */
     fun speakBootGreeting() {
         speak("Hola, soy Beto. Estoy acá para ayudarte.")
@@ -126,9 +207,10 @@ object TtsManager {
     private val progressListener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) {}
         override fun onDone(utteranceId: String?) {
-            // emit AgentEvent.TtsSpoke con el texto reproducido
-            // (no tenemos el texto acá — el id sirve solo de correlación;
-            // emitimos un evento neutral por ahora; Phase 2-3 puede mapear id->texto si necesario)
+            // Resume any pending continuation registered by speakAndAwait(). El listener es global,
+            // así que cualquier utterance —incluyendo speak() normal— va a llegar acá. Si no hay
+            // continuation registrada para el id, simplemente emitimos el evento como antes.
+            utteranceId?.let { id -> pendingContinuations.remove(id)?.let { resumeIfActive(it) } }
             scope.launch {
                 AgentBus.emit(AgentEvent.TtsSpoke("utterance:$utteranceId"))
             }
@@ -136,12 +218,18 @@ object TtsManager {
 
         @Deprecated("Deprecated in Java")
         override fun onError(utteranceId: String?) {
+            utteranceId?.let { id -> pendingContinuations.remove(id)?.let { resumeIfActive(it) } }
             emitFailed("utterance_error:$utteranceId")
         }
 
         override fun onError(utteranceId: String?, errorCode: Int) {
+            utteranceId?.let { id -> pendingContinuations.remove(id)?.let { resumeIfActive(it) } }
             emitFailed("utterance_error:$utteranceId:$errorCode")
         }
+    }
+
+    private fun resumeIfActive(cont: CancellableContinuation<Unit>) {
+        if (cont.isActive) cont.resume(Unit)
     }
 
     private fun emitFailed(reason: String) {

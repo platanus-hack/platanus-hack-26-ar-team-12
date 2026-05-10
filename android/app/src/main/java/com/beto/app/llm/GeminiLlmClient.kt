@@ -43,6 +43,13 @@ class GeminiLlmClient(
                 """{"corrected":""}"""
             }
 
+    override suspend fun generatePhrase(prompt: String): String =
+        runCatching { generateContent(prompt) }
+            .getOrElse {
+                Timber.tag(LogTags.LLM).w(it, "LLM_PHRASE_GEN_FAILED")
+                ""
+            }
+
     private fun parseDecision(raw: String): Decision? = DecisionJson.decode(raw)
 
     private suspend fun retryPrompt(prompt: String, malformedResponse: String): String =
