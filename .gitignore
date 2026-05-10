@@ -4,6 +4,7 @@
 .antigravity/
 
 node_modules/
+google-services.json
 
 # env files
 .env
